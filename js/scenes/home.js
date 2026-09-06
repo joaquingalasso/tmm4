@@ -2,111 +2,104 @@
 /* ============================================================
  * home.js — ESTADO 0 del sistema
  *
- * Una línea respira en el centro; sobre ella viven los tres
- * signos-familia. Cada signo adelanta su juego: el cuadrado
- * respira opacidad, el círculo respira color, el triángulo
- * respira grosor. Swipe para recorrerlos, tap para entrar.
+ * Es la portada y el índice: junto con el menú, la única
+ * superficie del sistema donde hay palabra. Título, cátedra,
+ * integrantes y una grilla de 3×3, una celda por signo, con la
+ * misma vista previa cinética que usan las pantallas "cero".
+ * Pulsar una celda entra a ese signo.
  * ============================================================ */
 
 class HomeScene extends Scene {
   enter() {
     super.enter();
-    this.focus = 1;      // arranca en el centro
-    this.focusF = 1;
-    this.dragX0 = null;
+    // orden fijo, fila por subsistema: tiempo · vínculo · devenir
+    this.grid = [];
+    for (const sid of SYSTEM.order) {
+      for (const cid of SYSTEM.subs[sid].concepts) this.grid.push(cid);
+    }
   }
 
-  stationX(i) {
-    return this.CX + (i - this.focusF) * this.W * 0.3;
+  /** Geometría: 3×3 celdas cuadradas e iguales, con aire entre ellas. */
+  layout() {
+    const headY = this.H * 0.19;                 // fin del encabezado
+    // franja de los nombres de las celdas + la de los integrantes
+    const labelBand = this.U * 0.024 + Math.max(9, this.U * 0.0115);
+    const footH = labelBand + this.U * 0.055 + Math.max(9, this.U * 0.0125) * 3.4;
+    const availH = this.H - headY - footH;
+    const availW = this.W * 0.9;
+    const GAP_RATIO = 0.16;
+    const cell = Math.min(availW, availH) / (3 + 2 * GAP_RATIO);
+    const gap = cell * GAP_RATIO;
+    const totalSide = cell * 3 + gap * 2;
+    const x0 = this.CX - totalSide / 2 + cell / 2;
+    // la grilla, sus nombres y los integrantes se centran como un bloque
+    const y0 = headY + Math.max(0, (availH - totalSide) / 2) + cell / 2;
+    const footY = y0 - cell / 2 + totalSide + labelBand + this.U * 0.055;
+    return { cell, gap, x0, y0, footY };
   }
 
-  update(dt) {
-    this.focusF += (this.focus - this.focusF) * Math.min(1, dt * 8);
+  /** Centro y lado de la celda i (0..8, fila por fila). */
+  cellAt(i) {
+    const { cell, gap, x0, y0 } = this.layout();
+    const col = i % 3, row = Math.floor(i / 3);
+    return { x: x0 + col * (cell + gap), y: y0 + row * (cell + gap), s: cell };
   }
 
   onTap(x, y) {
-    for (let i = 0; i < 3; i++) {
-      const sx = this.stationX(i);
-      if (dist(x, y, sx, this.CY) < this.U * 0.16) {
-        if (i === this.focus) {
-          const sid = SYSTEM.order[i];
-          this.app.scenes.go(SYSTEM.subs[sid].zero);
-        } else {
-          this.focus = i;
-        }
+    for (let i = 0; i < this.grid.length; i++) {
+      const c = this.cellAt(i);
+      if (Math.abs(x - c.x) < c.s / 2 && Math.abs(y - c.y) < c.s / 2) {
+        this.app.scenes.go(this.grid[i]);
         return;
       }
     }
   }
 
-  onSwipe(dir) {
-    if (dir === 'left') { this.focus = Math.min(2, this.focus + 1); return true; }
-    if (dir === 'right') { this.focus = Math.max(0, this.focus - 1); return true; }
-    return false;
-  }
+  /** Mantener una celda también entra: no hay tercer gesto que aprender. */
+  onHoldStart(x, y) { this.onTap(x, y); }
 
   draw() {
-    const k = this.enterK(1.2);
-    const tt = this.t();
+    const k = this.enterK(1.1);
     const u = this.U;
     textFont('Helvetica');
+    setDash(Dash.none);
 
-    // título del sistema
-    trackedText('SISTEMA DE SEÑAS', this.CX, this.H * 0.14, Math.max(15, u * 0.026), 7, Palette.ink, 220 * this.enterK(1, 0.2));
-    fadedText('nueve estados sobre una línea', this.CX, this.H * 0.14 + u * 0.04, Math.max(11, u * 0.015), Palette.ink, 120 * this.enterK(1, 0.5));
+    // título del sistema (dos líneas, para caber en pantallas angostas)
+    const titleA = 220 * this.enterK(1, 0.15);
+    fadedText('Sistema de signos de representación', this.CX, this.H * 0.07,
+      Math.max(13, u * 0.021), Palette.ink, titleA);
+    fadedText('geométrica, cinética y reactiva.', this.CX, this.H * 0.07 + u * 0.032,
+      Math.max(13, u * 0.021), Palette.ink, titleA);
 
-    // la línea madre: se dibuja a sí misma y respira
-    const lw = this.W * 0.86 * k;
-    const breathe = 1 + 0.002 * Math.sin(tt * 1.4);
-    stroke(Palette.inkA(110));
-    strokeWeight(1.3);
-    line(this.CX - lw / 2 * breathe, this.CY, this.CX + lw / 2 * breathe, this.CY);
+    fadedText('Taller de Diseño Multimedial 4 · Facultad de Artes · UNLP · 2026',
+      this.CX, this.H * 0.07 + u * 0.07, Math.max(10, u * 0.0125), Palette.ink,
+      130 * this.enterK(1, 0.35));
 
-    // los tres signos-familia sobre la línea
-    for (let i = 0; i < 3; i++) {
-      const sid = SYSTEM.order[i];
-      const sub = SYSTEM.subs[sid];
-      const fk = 1 - Math.min(1, Math.abs(i - this.focusF));
-      const sx = this.stationX(i);
-      const appearK = this.enterK(0.7, 0.4 + i * 0.25);
-      const s = u * (0.085 + 0.055 * fk) * appearK;
-      const bob = Math.sin(tt * 1.2 + i * 2.1) * u * 0.006;
-      const y = this.CY + bob;
-      const alpha = (90 + 165 * fk) * appearK;
+    // la grilla 3×3: una vista previa por signo
+    for (let i = 0; i < this.grid.length; i++) {
+      const cid = this.grid[i];
+      const c = SYSTEM.concepts[cid];
+      const p = this.cellAt(i);
+      const appearK = this.enterK(0.6, 0.25 + i * 0.03);
+      if (appearK <= 0) continue;
 
       push();
-      if (sub.sign === 'square') {
-        // el cuadrado respira OPACIDAD
-        const op = alpha * (0.6 + 0.4 * Math.sin(tt * 0.9 + 1));
-        drawSign('square', sx, y, s, { fillCol: Palette.sub1.grays[1], alpha: op });
-        drawSign('square', sx, y, s, { col: Palette.ink, alpha: alpha * 0.8, weight: 1.4 });
-      } else if (sub.sign === 'circle') {
-        // el círculo respira COLOR: dos contornos de color desfasados
-        const c1 = Palette.circleColor(Math.floor(tt * 0.35) % 10);
-        const c2 = Palette.circleColor((Math.floor(tt * 0.35) + 3) % 10);
-        const off = u * 0.006 * (0.5 + 0.5 * Math.sin(tt * 1.7));
-        drawSign('circle', sx - off, y, s, { col: c1, alpha, weight: 2.2 });
-        drawSign('circle', sx + off, y, s, { col: c2, alpha: alpha * 0.85, weight: 2.2 });
-      } else {
-        // el triángulo respira GROSOR DE LÍNEA
-        const wgt = 1 + 3.4 * (0.5 + 0.5 * Math.sin(tt * 1.1 + 2));
-        drawSign('triangle', sx, y + s * 0.08, s, { col: Palette.ink, alpha, weight: wgt });
-      }
+      rectMode(CENTER);
+      noFill();
+      stroke(Palette.inkA(46 * appearK * k));
+      strokeWeight(1);
+      rect(p.x, p.y, p.s, p.s);
       pop();
 
-      // etiquetas de la familia enfocada
-      if (fk > 0.55) {
-        const la = (fk - 0.55) / 0.45 * 255 * appearK;
-        trackedText(sub.name, sx, this.CY + u * 0.135, Math.max(12, u * 0.019), 5, Palette.ink, la * 0.9);
-        fadedText(sub.tagline, sx, this.CY + u * 0.135 + u * 0.03, Math.max(10, u * 0.0135), Palette.ink, la * 0.55);
-        fadedText(sub.rule, sx, this.CY + u * 0.135 + u * 0.055, Math.max(9, u * 0.0115), Palette.ink, la * 0.35);
-      }
+      drawConceptPreview(cid, p.x, p.y, p.s * 0.72, 200 * appearK * k, this.t());
+
+      fadedText(c.title, p.x, p.y + p.s / 2 + u * 0.024,
+        Math.max(9, u * 0.0115), Palette.ink, 130 * appearK * k);
     }
 
-    // ayuda mínima, abajo
-    fadedText('swipeá para recorrer · tocá una figura para entrar', this.CX, this.H * 0.9,
-      Math.max(10, u * 0.013), Palette.ink, 80 * this.enterK(1, 1.2));
-
-    this.drawFrame();
+    // integrantes del grupo, en orden alfabético
+    fittedText(MEMBERS.join('   ·   '), this.CX, this.layout().footY,
+      Math.max(9, u * 0.0125), this.W * 0.9,
+      Palette.ink, 140 * this.enterK(1, 0.7));
   }
 }

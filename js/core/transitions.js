@@ -7,6 +7,10 @@
  * horizontal; sobre la línea encendida aparece el nombre del
  * estado de destino; luego la línea se abre y revela la escena.
  * La línea es el estadío que conecta los tres subsistemas.
+ *
+ * Es el único momento fuera del menú en que hay una palabra, y
+ * cumple una función estrictamente de navegación: decir a dónde
+ * se llegó. Dentro del signo ya no queda ni un texto.
  * ============================================================ */
 
 class TransitionManager {
@@ -16,18 +20,16 @@ class TransitionManager {
     this.phase = 'idle';   // close → hold → open
     this.t = 0;
     this.label = '';
-    this.sublabel = '';
     this.onSwitch = null;
-    this.DUR = { close: 0.55, hold: 0.85, open: 0.7 };
+    this.DUR = { close: 0.5, hold: 0.7, open: 0.6 };
   }
 
-  run(label, sublabel, onSwitch) {
+  run(label, _sub, onSwitch) {
     if (this.active) return false;
     this.active = true;
     this.phase = 'close';
     this.t = 0;
     this.label = label || '';
-    this.sublabel = sublabel || '';
     this.onSwitch = onSwitch;
     return true;
   }
@@ -62,6 +64,7 @@ class TransitionManager {
     const cy = height / 2;
     const coverH = f * (cy + 2);
 
+    setDash(Dash.none);
     noStroke();
     fill(Palette.bg);
     rect(0, 0, width, coverH);
@@ -75,16 +78,14 @@ class TransitionManager {
     strokeWeight(1.4 * breathe);
     line(width / 2 - lw / 2, cy, width / 2 + lw / 2, cy);
 
-    // etiqueta del destino, visible mientras vivimos en la línea
+    // el nombre del destino, sólo mientras vivimos en la línea
     let labelA = 0;
-    if (this.phase === 'hold') labelA = Ease.outCubic(clamp01(this.t / 0.3));
-    if (this.phase === 'open') labelA = 1 - clamp01(this.t / 0.25);
+    if (this.phase === 'hold') labelA = Ease.outCubic(clamp01(this.t / 0.28));
+    if (this.phase === 'open') labelA = 1 - clamp01(this.t / 0.22);
     if (labelA > 0.01 && this.label) {
       textFont('Helvetica');
-      trackedText(this.label, width / 2, cy - 34, Math.max(15, unit() * 0.026), 6, Palette.ink, 235 * labelA);
-      if (this.sublabel) {
-        fadedText(this.sublabel, width / 2, cy + 30, Math.max(11, unit() * 0.016), Palette.ink, 130 * labelA);
-      }
+      trackedText(this.label, width / 2, cy - 32,
+        Math.max(15, unit() * 0.026), 6, Palette.ink, 235 * labelA);
     }
   }
 }

@@ -2,18 +2,35 @@
 /* ============================================================
  * sub3.js — SUBSISTEMA 3 · EL DEVENIR
  * Sólo triángulos. Se juega con el GROSOR DE LÍNEA.
- * La línea es el camino: firme lo andado, apenas insinuado lo
- * que viene. Referencia: la montaña del boceto, la inestabilidad
- * de Le Parc, el triángulo como tensión ascendente (Kandinsky).
+ *
+ * Hay una sola regla de trazo, y vale para los tres signos:
+ *
+ *   LÍNEA CONTINUA     el sujeto: lo que está siendo ahora
+ *   LÍNEA DISCONTINUA  todo lo que el sujeto deja: el camino
+ *                      andado, los ecos de cada intento, las
+ *                      proyecciones de lo que todavía no es
+ *
+ * El patrón discontinuo es siempre el mismo (Dash.marca). Lo que
+ * distingue una marca de otra es el GROSOR y la opacidad: cuanto
+ * más fina y más apagada, menos real.
+ *
+ * Referencia: la montaña del boceto, la inestabilidad de Le Parc,
+ * el triángulo como tensión ascendente (Kandinsky).
  * ============================================================ */
 
 /* ------------------------------------------------------------
  * INCERTIDUMBRE (como desconocimiento del devenir)
- * Un caminante recorre un perfil de montaña. El tramo andado es
- * grueso y firme; delante no hay nada. Al avanzar, el futuro se
- * insinúa como varios caminos fantasma temblorosos, y recién al
- * pisarlo uno se vuelve real. Nunca se ve más allá del próximo
- * vértice.
+ * Un caminante recorre un perfil de montaña. Él es línea continua;
+ * el camino que va dejando atrás, discontinuo. Adelante no hay
+ * nada dibujado.
+ *
+ * PULSAR   da un paso: se insinúan tres futuros posibles y, sin
+ *          que uno pueda elegir, el devenir se queda con uno.
+ *          Recién al pisarlo el camino existe.
+ * MANTENER es querer ver adelante: se abre el abanico completo de
+ *          lo que podría pasar, ramas y ramas de ramas, cada nivel
+ *          más fino y más apagado. Mirar no decide nada: al soltar
+ *          el abanico se borra y el camino sigue donde estaba.
  * ------------------------------------------------------------ */
 class IncertidumbreScene extends Scene {
   enter() {
@@ -21,15 +38,14 @@ class IncertidumbreScene extends Scene {
     this.baseY = this.H * 0.58;
     this.verts = [{ x: 0, y: this.baseY }];
     this.stepX = this.W * 0.16;
-    // un par de tramos ya andados
     this.pushVert(); this.pushVert();
-    this.walker = { i: this.verts.length - 1, prog: 1 };
-    this.ghosts = null;      // candidatos al próximo tramo
+    this.ghosts = null;
     this.ghostT = 0;
     this.sliding = false;
     this.slideT = 0;
     this.offsetX = 0;
     this.offsetTarget = 0;
+    this.fan = null;          // abanico de futuros, sólo mientras se mantiene
   }
 
   pushVert() {
@@ -45,7 +61,8 @@ class IncertidumbreScene extends Scene {
     this.verts.push({ x: last.x + this.stepX * (0.75 + Math.random() * 0.5), y });
   }
 
-  makeGhosts() {
+  advance() {
+    if (this.sliding || this.ghosts) return;
     const last = this.verts[this.verts.length - 1];
     const opts = [];
     for (let i = 0; i < 3; i++) {
@@ -59,23 +76,44 @@ class IncertidumbreScene extends Scene {
     this.ghostT = 0;
   }
 
-  advance() {
-    if (this.sliding || this.ghosts) return;
-    this.makeGhosts();
+  /** Ramifica desde un punto: el árbol de lo que todavía no es. */
+  branch(from, depth, seed) {
+    if (depth === 0) return [];
+    const rng = mulberry32(seed);
+    const out = [];
+    const n = depth === 3 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const node = {
+        x: from.x + this.stepX * (0.7 + rng() * 0.55),
+        y: clampv(from.y + (rng() - 0.5) * this.H * 0.28, this.H * 0.2, this.H * 0.76),
+        seed: seed + i * 977,
+        from,
+      };
+      out.push(node);
+      out.push(...this.branch(node, depth - 1, seed + i * 977));
+    }
+    return out;
   }
 
-  onSwipe(dir) {
-    if (dir === 'left') { this.advance(); return true; }
-    if (dir === 'right') return true; // lo andado no se desanda mirando
-    return false;
+  onTap() { this.advance(); }
+
+  onHoldStart() {
+    this.holding = true;
+    const last = this.verts[this.verts.length - 1];
+    this.fan = this.branch(last, 3, 1234 + this.verts.length * 31);
   }
 
-  onTap(x) { if (x > this.W * 0.4) this.advance(); }
+  onHoldEnd() {
+    this.holding = false;
+    this.fan = null;   // mirar no decide nada
+  }
 
   update(dt) {
+    this.updateHold(dt, 4.5);
+
     if (this.ghosts) {
       this.ghostT += dt;
-      if (this.ghostT > 0.55) {
+      if (this.ghostT > 1.2) {
         // el devenir elige uno: recién ahí existe
         const pick = this.ghosts[Math.floor(Math.random() * this.ghosts.length)];
         this.verts.push({ x: pick.x, y: pick.y });
@@ -89,7 +127,6 @@ class IncertidumbreScene extends Scene {
       if (this.slideT >= 1) {
         this.slideT = 1;
         this.sliding = false;
-        this.walker = { i: this.verts.length - 1, prog: 1 };
         const last = this.verts[this.verts.length - 1];
         this.offsetTarget = Math.max(0, last.x - this.W * 0.42);
       }
@@ -111,18 +148,21 @@ class IncertidumbreScene extends Scene {
   draw() {
     const k = this.enterK(1);
     const tt = this.t();
+    const hk = this.holdK;
     push();
     translate(-this.offsetX, 0);
-
-    // lo andado: cada tramo más viejo es más cierto (más grueso)
     noFill();
+
+    // EL CAMINO ANDADO — marca. Cuanto más viejo el tramo, más
+    // grueso y más opaco: lo lejano ya no se discute.
+    setDash(Dash.marca);
     const n = this.verts.length;
     for (let i = 1; i < n; i++) {
       const isLast = i === n - 1;
       const age = n - 1 - i;
       const w = isLast && this.sliding ? 1.6 : clampv(1.8 + age * 0.55, 1.8, 6);
       const a = clampv(235 - age * 14, 90, 235) * k;
-      stroke(Palette.inkA(a));
+      stroke(Palette.triA(i, a));
       strokeWeight(w);
       const A = this.verts[i - 1], B = this.verts[i];
       if (isLast && this.sliding) {
@@ -133,278 +173,323 @@ class IncertidumbreScene extends Scene {
       }
     }
 
-    // los futuros posibles: hilos que tiemblan y no pesan nada
+    // EL ABANICO DE LO QUE PODRÍA PASAR — marca, cada nivel más fino
+    if (this.fan && hk > 0.01) {
+      for (const nd of this.fan) {
+        const depth = dist(nd.x, nd.y, this.verts[n - 1].x, this.verts[n - 1].y) / this.stepX;
+        const flick = 0.5 + 0.5 * noise(nd.seed, tt * 9);
+        stroke(Palette.triA(Math.floor(nd.seed) % 8, (245 - depth * 24) * hk * flick * k));
+        strokeWeight(Math.max(0.8, 1.7 - depth * 0.28));
+        line(nd.from.x, nd.from.y,
+             nd.x + (flick - 0.5) * 7, nd.y + (flick - 0.5) * 10);
+      }
+    }
+
+    // LOS TRES FUTUROS DEL PASO EN CURSO — marca finísima, temblando
     if (this.ghosts) {
       const last = this.verts[n - 1];
-      for (const g of this.ghosts) {
+      for (let gi = 0; gi < this.ghosts.length; gi++) {
+        const g = this.ghosts[gi];
         const flick = noise(g.seed, tt * 14);
-        stroke(Palette.inkA(120 * flick * k));
-        strokeWeight(0.6);
+        stroke(Palette.triA(gi + 5, (90 + 140 * flick) * k));
+        strokeWeight(1.2);
         line(last.x, last.y, g.x + (flick - 0.5) * 8, g.y + (flick - 0.5) * 12);
       }
     }
 
-    // el caminante: un pequeño triángulo orientado a lo que viene
+    // EL CAMINANTE — el sujeto: línea continua
+    setDash(Dash.none);
     const wp = this.walkerPos();
     const prev = this.verts[Math.max(0, n - 2)];
     const ang = Math.atan2(wp.y - prev.y, wp.x - prev.x);
     push();
-    translate(wp.x, wp.y - 9);
+    translate(wp.x, wp.y - 10);
     rotate(ang * 0.35);
-    drawSign('triangle', 0, 0, 15, { fillCol: Palette.ink, alpha: 245 * k });
+    drawSign('triangle', 0, 0, 17, { col: Palette.triColor(7), alpha: 250 * k, weight: 2.6 });
     pop();
     pop();
+    setDash(Dash.none);
 
     // niebla del futuro: el borde derecho no existe todavía
-    const grad = drawingContext.createLinearGradient(this.W * 0.55, 0, this.W, 0);
+    // (al mirar el abanico, la niebla se retira)
+    const fogFrom = this.W * (0.55 + 0.4 * hk);
+    const grad = drawingContext.createLinearGradient(fogFrom, 0, this.W, 0);
     grad.addColorStop(0, 'rgba(10,10,12,0)');
-    grad.addColorStop(1, 'rgba(10,10,12,0.94)');
+    grad.addColorStop(1, `rgba(10,10,12,${0.94 - 0.74 * hk})`);
     drawingContext.fillStyle = grad;
     noStroke();
-    drawingContext.fillRect(this.W * 0.55, 0, this.W * 0.45, this.H);
-
-    this.drawFrame();
+    drawingContext.fillRect(fogFrom, 0, this.W - fogFrom, this.H);
   }
 }
 
 /* ------------------------------------------------------------
  * ANSIEDAD (como pre-ocupación sobre el futuro)
- * Un triángulo que no se deja tocar: se escapa justo antes del
- * contacto y cada intento deja un eco tembloroso. Cuanto más se
- * lo persigue, más gruesos y nerviosos los trazos, más cerrada
- * la escena. La única salida es dejar de intentar: la quietud
- * lo calma, lo abre y deja pasar.
+ * Un triángulo que no se deja tocar. Él es línea continua; cada
+ * intento fallido queda como un eco discontinuo que no se va.
+ *
+ * PULSAR   sólo cuenta SOBRE el triángulo: hay que acertarle. Se
+ *          escapa justo antes del contacto y deja su eco. Tocar al
+ *          lado no hace nada: la ansiedad no reacciona a cualquier
+ *          cosa, reacciona a que la persigas.
+ * MANTENER es no soltar, y entonces se desmadra: el triángulo se
+ *          sacude, los ecos se multiplican solos por todas partes,
+ *          la escena entera tiembla y se cierra encima. Sostener
+ *          la pre-ocupación no la resuelve, la desborda. Al soltar
+ *          baja de a poco, pero lo que uno provocó queda.
  * ------------------------------------------------------------ */
 class AnsiedadScene extends Scene {
   enter() {
     super.enter();
     this.tri = { x: this.CX, y: this.CY, tx: this.CX, ty: this.CY };
     this.jit = 0;                 // nerviosismo 0..1
-    this.echoes = [];             // { x, y, s, a }
-    this.dodges = 0;
-    this.calmSince = millis();
-    this.open = false;
-    this.exhausted = false;
+    this.echoes = [];             // { x, y, s, a, seed, temp }
+    this.spawnT = 0;
+    this.shake = 0;               // el temblor de toda la escena
   }
 
   size() { return this.U * 0.12; }
 
-  onDown(x, y) {
-    if (this.open) return;
-    this.calmSince = millis();
-    const d = dist(x, y, this.tri.x, this.tri.y);
-    if (d < this.size() * 1.9) {
-      // se escapa ANTES del contacto y deja un eco
-      this.echoes.push({ x: this.tri.x, y: this.tri.y, s: this.size(), a: 170 });
-      const away = Math.atan2(this.tri.y - y, this.tri.x - x) + (Math.random() - 0.5) * 1.2;
-      const r = this.U * (0.2 + Math.random() * 0.14);
-      this.tri.tx = clampv(this.tri.x + Math.cos(away) * r, this.W * 0.16, this.W * 0.84);
-      this.tri.ty = clampv(this.tri.y + Math.sin(away) * r, this.H * 0.2, this.H * 0.78);
-      this.jit = Math.min(1, this.jit + 0.2);
-      this.dodges++;
-      if (this.dodges >= 10 && !this.exhausted) {
-        // sobrecarga: la ansiedad se agota sola
-        this.exhausted = true;
-        for (let i = 0; i < 8; i++) {
-          this.echoes.push({
-            x: this.CX + (Math.random() - 0.5) * this.W * 0.5,
-            y: this.CY + (Math.random() - 0.5) * this.H * 0.4,
-            s: this.size() * (0.6 + Math.random() * 0.8), a: 120,
-          });
-        }
-        this.jit = 1;
-      }
-    } else {
-      this.jit = Math.min(1, this.jit + 0.05);
-    }
+  /** El radio en que se considera que le acertaste. */
+  hitR() { return this.size() * 0.75; }
+
+  onTap(x, y) {
+    if (dist(x, y, this.tri.x, this.tri.y) > this.hitR()) return;  // le erraste
+    this.echoes.push({
+      x: this.tri.x, y: this.tri.y, s: this.size(),
+      a: 155, seed: Math.random() * 100, temp: false,
+    });
+    if (this.echoes.length > 16) this.echoes.shift();
+
+    const away = Math.atan2(this.tri.y - y, this.tri.x - x) + (Math.random() - 0.5) * 0.9;
+    const r = this.U * (0.15 + Math.random() * 0.12);
+    this.tri.tx = clampv(this.tri.x + Math.cos(away) * r, this.W * 0.18, this.W * 0.82);
+    this.tri.ty = clampv(this.tri.y + Math.sin(away) * r, this.H * 0.22, this.H * 0.76);
+    this.jit = Math.min(1, this.jit + 0.18);
   }
 
-  update(dt) {
-    this.tri.x += (this.tri.tx - this.tri.x) * Math.min(1, dt * 9);
-    this.tri.y += (this.tri.ty - this.tri.y) * Math.min(1, dt * 9);
+  onHoldStart() { this.holding = true; }
+  onHoldEnd() { this.holding = false; }
 
-    const still = millis() - this.calmSince > (this.exhausted ? 1500 : 3200);
-    if (still) {
-      this.jit = Math.max(0, this.jit - dt * (this.exhausted ? 0.5 : 0.3));
-      for (const e of this.echoes) e.a -= dt * 60;
-      this.echoes = this.echoes.filter(e => e.a > 3);
-      if (!this.open && this.jit < 0.04 && this.echoes.length === 0 && this.dodges > 0) {
-        this.open = true;
-        this.tri.tx = this.CX; this.tri.ty = this.CY;
-        this.app.scenes.offerNext();   // calma → el devenir se deja mirar
+  update(dt) {
+    this.updateHold(dt, 3.5);
+    const hk = this.holdK;
+
+    if (this.holding) {
+      this.jit = Math.min(1, this.jit + dt * 1.5);
+      this.shake = Math.min(1, this.shake + dt * 1.8);
+
+      // los ecos se multiplican solos, por todas partes
+      this.spawnT += dt;
+      if (this.spawnT > 0.1 && this.echoes.length < 34) {
+        this.spawnT = 0;
+        this.echoes.push({
+          x: this.CX + (Math.random() - 0.5) * this.W * 0.84,
+          y: this.CY + (Math.random() - 0.5) * this.H * 0.6,
+          s: this.size() * (0.45 + Math.random() * 0.95),
+          a: 90 + Math.random() * 110,
+          seed: Math.random() * 100,
+          temp: true,
+        });
+      }
+
+      // y el triángulo no para quieto
+      if (Math.random() < dt * 5) {
+        this.tri.tx = clampv(this.CX + (Math.random() - 0.5) * this.W * 0.55, this.W * 0.18, this.W * 0.82);
+        this.tri.ty = clampv(this.CY + (Math.random() - 0.5) * this.H * 0.45, this.H * 0.22, this.H * 0.76);
       }
     } else {
-      for (const e of this.echoes) e.a -= dt * 9;
-      this.echoes = this.echoes.filter(e => e.a > 3);
+      // baja de a poco; los ecos del desborde se van, los de cada
+      // intento fallido quedan: eso sí lo provocaste vos
+      this.jit = Math.max(0, this.jit - dt * 0.12);   // el nervio de cada intento tarda en bajar
+      this.shake = Math.max(0, this.shake - dt * 1.6);
+      for (let i = this.echoes.length - 1; i >= 0; i--) {
+        const e = this.echoes[i];
+        if (!e.temp) continue;
+        e.a -= dt * 150;
+        if (e.a <= 2) this.echoes.splice(i, 1);
+      }
     }
+
+    const chase = 9 + 14 * hk;
+    this.tri.x += (this.tri.tx - this.tri.x) * Math.min(1, dt * chase);
+    this.tri.y += (this.tri.ty - this.tri.y) * Math.min(1, dt * chase);
   }
 
   draw() {
     const k = this.enterK(1);
     const tt = this.t();
     const j = this.jit;
+    const sh = this.shake;
 
-    // la escena se cierra con el nerviosismo (viñeta)
+    push();
+    // la escena entera tiembla cuando no se suelta
+    if (sh > 0.01) {
+      translate((noise(11, tt * 13) - 0.5) * 22 * sh,
+                (noise(29, tt * 13) - 0.5) * 22 * sh);
+    }
+
+    // se cierra encima con el nerviosismo
     if (j > 0.02) {
       const g = drawingContext.createRadialGradient(
-        this.CX, this.CY, this.U * 0.2, this.CX, this.CY, this.U * 0.75);
+        this.CX, this.CY, this.U * (0.22 - 0.12 * sh),
+        this.CX, this.CY, this.U * 0.75);
       g.addColorStop(0, 'rgba(0,0,0,0)');
       g.addColorStop(1, `rgba(0,0,0,${0.55 * j})`);
       drawingContext.fillStyle = g;
-      drawingContext.fillRect(0, 0, this.W, this.H);
+      drawingContext.fillRect(-40, -40, this.W + 80, this.H + 80);
     }
 
-    // ecos de cada intento: la pre-ocupación acumulada
-    for (const e of this.echoes) {
-      const jx = (noise(e.x, tt * 8) - 0.5) * 10 * j;
-      const jy = (noise(e.y, tt * 8 + 9) - 0.5) * 10 * j;
-      drawSign('triangle', e.x + jx, e.y + jy, e.s,
-        { col: Palette.ink, alpha: e.a * k, weight: 1 + j * 2.6 });
+    // LOS ECOS — marca: lo que quedó de perseguirlo
+    setDash(Dash.marca);
+    for (let ei = 0; ei < this.echoes.length; ei++) {
+      const e = this.echoes[ei];
+      const amp = 12 * j * (1 + 2.2 * sh);
+      const jx = (noise(e.seed, tt * 8) - 0.5) * amp;
+      const jy = (noise(e.seed + 9, tt * 8) - 0.5) * amp;
+      const recency = (ei + 1) / this.echoes.length;
+      drawSign('triangle', e.x + jx, e.y + jy, e.s * (0.82 + 0.18 * recency),
+        { col: Palette.triColor(ei), alpha: e.a * (0.35 + 0.65 * recency) * k,
+          weight: 0.8 + j * 1.3, rot: (noise(e.seed + 3, tt * 4) - 0.5) * 0.9 * sh });
     }
 
-    // el futuro que no se deja agarrar
-    const jx = (noise(1, tt * 10) - 0.5) * 16 * j;
-    const jy = (noise(9, tt * 10) - 0.5) * 16 * j;
-    if (this.open) {
-      const breathe = 1 + 0.03 * Math.sin(tt * 1.6);
-      drawSign('triangle', this.tri.x, this.tri.y, this.size() * breathe,
-        { col: Palette.ink, alpha: 235 * k, weight: 2 });
-    } else {
-      drawSign('triangle', this.tri.x + jx, this.tri.y + jy, this.size(),
-        { fillCol: Palette.sub1.grays[2], alpha: 240 * k });
-    }
-
-    if (this.open) {
-      fadedText('quieto, el futuro deja de morder', this.CX, this.H * 0.8,
-        Math.max(11, this.U * 0.0145), Palette.ink, 130 * k);
-    } else if (this.dodges >= 3) {
-      fadedText('…o quedate quieto', this.CX, this.H * 0.85,
-        Math.max(10, this.U * 0.0135), Palette.ink, 80 * Math.min(1, (this.dodges - 2) / 3));
-    }
-    this.drawFrame();
+    // EL TRIÁNGULO — el sujeto: línea continua, siempre
+    setDash(Dash.none);
+    const amp = 16 * j * (1 + 1.6 * sh);
+    const jx = (noise(1, tt * 10) - 0.5) * amp;
+    const jy = (noise(9, tt * 10) - 0.5) * amp;
+    drawSign('triangle', this.tri.x + jx, this.tri.y + jy, this.size(),
+      { col: Palette.triColor(4), alpha: 252 * k, weight: 3.2 + 1.2 * sh,
+        rot: (noise(5, tt * 6) - 0.5) * 0.5 * sh });
+    pop();
+    setDash(Dash.none);
   }
 }
 
 /* ------------------------------------------------------------
  * EXPECTATIVA (como anticipación)
- * Contornos livianos, a punto de subir. Mantener presionado
- * carga la anticipación: los triángulos se tensan y engrosan.
- * Al soltar, el devenir decide: a veces se cumple (suben en
- * bandada), a veces no — y la expectativa incumplida llama,
- * ahí mismo, al signo de la ansiedad. Cuanto más larga la
- * espera, más frágil la promesa.
+ * La expectativa no es una meta que se alcanza: es un contorno
+ * dibujado SIEMPRE un poco más adelante que lo real. Acá eso es
+ * literal, y la regla de trazo lo dice sola: lo real es línea
+ * continua, lo anticipado es marca.
+ *
+ * PULSAR   hace saltar lo real hacia su anticipación… y en el
+ *          mismo movimiento la anticipación se proyecta más
+ *          arriba. Se sube de verdad, pero la distancia nunca se
+ *          cierra, y cada contorno incumplido queda atrás, cada
+ *          vez más fino.
+ * MANTENER es anticipar: la proyección corre sola hacia adelante,
+ *          apilando contornos cada vez más altos y más finos. Al
+ *          soltar se desploma: lo real quedó donde estaba.
  * ------------------------------------------------------------ */
 class ExpectativaScene extends Scene {
   enter() {
     super.enter();
-    const rng = mulberry32(21);
-    this.tris = [];
-    for (let i = 0; i < 12; i++) {
-      this.tris.push({
-        x: 0.12 + rng() * 0.76,           // fracciones: sobreviven al resize
-        y: 0.3 + rng() * 0.45,
-        s: 0.05 + rng() * 0.07,
-        rot: (rng() - 0.5) * 0.5,
-        ph: rng() * TWO_PI,
-        lift: 0, vy: 0,
-      });
-    }
-    this.charge = 0;
-    this.charging = false;
-    this.outcome = null;      // 'up' | 'down'
-    this.outcomeT = 0;
-    this.msg = '';
+    this.real = 0;            // altura real alcanzada (en pasos)
+    this.realShown = 0;
+    this.exp = 1;             // altura de la anticipación
+    this.expShown = 1;
+    this.proj = 0;            // cuánto corrió la anticipación al mantener
+    this.ghosts = [];         // contornos que quedaron sin cumplir
+    this.camY = 0;
+    this.snap = 0;
   }
 
-  onHoldStart() {
-    if (this.outcome) return;
-    this.charging = true;
-  }
-
-  onHoldEnd() {
-    if (!this.charging) return;
-    this.charging = false;
-    // cuanto más se inflÓ la espera, más frágil la promesa
-    const p = this.charge < 0.5 ? 0.85 : lerp(0.85, 0.12, (this.charge - 0.5) / 0.5);
-    this.outcome = Math.random() < p ? 'up' : 'down';
-    this.outcomeT = 0;
-    if (this.outcome === 'down') {
-      this.msg = 'no se cumplió';
-      this.app.scenes.offerNext();   // → ansiedad, por la cadena del sistema
-    } else {
-      this.msg = 'esta vez sí';
-    }
-    for (const tr of this.tris) {
-      tr.vy = this.outcome === 'up'
-        ? -(0.35 + Math.random() * 0.5) * (0.5 + this.charge)
-        : (0.12 + Math.random() * 0.2);
-    }
-  }
+  stepY() { return this.U * 0.17; }
+  yOf(level) { return this.H * 0.66 - level * this.stepY() + this.camY; }
 
   onTap() {
-    // un toque corto: apenas un respingo de anticipación
-    for (const tr of this.tris) tr.vy = -0.05 - Math.random() * 0.05;
+    const gained = (this.exp - this.real) * 0.62;
+    this.ghosts.push({ level: this.exp, born: millis() });
+    if (this.ghosts.length > 14) this.ghosts.shift();
+    this.real += gained;
+    this.exp = this.real + 0.85 + Math.random() * 0.5;
   }
 
+  onHoldStart() { this.holding = true; }
+  onHoldEnd() { this.holding = false; this.snap = 1; }
+
   update(dt) {
-    if (this.charging) this.charge = Math.min(1, this.charge + dt / 3.2);
+    this.updateHold(dt, 3);
 
-    if (this.outcome) {
-      this.outcomeT += dt;
-      for (const tr of this.tris) {
-        tr.lift += tr.vy * dt;
-        tr.vy += (this.outcome === 'up' ? 0.5 : 0.3) * dt; // la gravedad siempre vuelve
-        if (this.outcome === 'up' && tr.lift > 0) { tr.lift = 0; tr.vy = 0; }
-        if (this.outcome === 'down') tr.lift = Math.min(tr.lift, 0.12);
-      }
-      if (this.outcomeT > 2.6) {
-        this.outcome = null;
-        this.charge = 0;
-        this.msg = '';
-        for (const tr of this.tris) { tr.lift = 0; tr.vy = 0; }
-      }
-    } else if (!this.charging) {
-      this.charge = Math.max(0, this.charge - dt * 0.5);
-    }
+    if (this.holding) this.proj = Math.min(6, this.proj + dt * 1.7);
+    else this.proj *= Math.exp(-dt * 5);
+    this.snap = Math.max(0, this.snap - dt * 2);
 
-    for (const tr of this.tris) {
-      if (!this.outcome) tr.lift = -this.charge * 0.1;
-    }
+    this.realShown += (this.real - this.realShown) * Math.min(1, dt * 4);
+    this.expShown += (this.exp + this.proj - this.expShown) * Math.min(1, dt * 3.4);
+
+    // la cámara sigue a lo real, no a lo esperado: el encuadre nunca
+    // se va a lo que todavía no pasó. Lo real queda siempre a la
+    // misma altura y lo que se mueve alrededor es el resto.
+    const target = this.realShown * this.stepY();
+    this.camY += (target - this.camY) * Math.min(1, dt * 2.2);
   }
 
   draw() {
     const k = this.enterK(1);
     const tt = this.t();
-    const ch = this.charge;
+    const hk = this.holdK;
+    const x = this.CX;
+    const base = this.U * 0.13;
+    const yReal = this.yOf(this.realShown);
+    const yExp = this.yOf(this.expShown);
 
-    // el horizonte de lo que viene: sube con la carga
-    const hy = this.H * (0.86 - ch * 0.06);
-    stroke(Palette.inkA((70 + 120 * ch) * k));
-    strokeWeight(1 + ch * 2);
-    line(this.W * 0.08, hy, this.W * 0.92, hy);
+    // EL EJE — marca: es el rastro del ascenso, no el sujeto.
+    // Grueso lo recorrido, fino lo que falta.
+    setDash(Dash.marca);
+    stroke(Palette.triA(1, 120 * k));
+    strokeWeight(2);
+    line(x, this.H + 20, x, yReal);
+    stroke(Palette.triA(1, (70 + 90 * hk) * k));
+    strokeWeight(1);
+    line(x, yReal, x, yExp);
 
-    for (const tr of this.tris) {
-      const idle = this.outcome ? 0 : Math.sin(tt * 1.3 + tr.ph) * 0.004 * (1 - ch);
-      const x = tr.x * this.W;
-      const y = (tr.y + tr.lift + idle) * this.H;
-      const w = 1 + ch * 4.2 + (this.outcome === 'down' ? -0.5 : 0);
-      const trem = this.outcome === 'down' && this.outcomeT < 1.2
-        ? (noise(tr.ph, tt * 12) - 0.5) * 7 : 0;
-      const rot = lerp(tr.rot, 0, ch);
-      const a = this.outcome === 'down' ? 160 : 220;
-      const col = this.outcome === 'up' && this.outcomeT < 0.9 ? Palette.accent : Palette.ink;
-      drawSign('triangle', x + trem, y, tr.s * this.U * (1 + ch * 0.15),
-        { col, alpha: a * k, weight: Math.max(0.6, w), rot });
+    // LOS CONTORNOS INCUMPLIDOS — marca: se afinan con el tiempo
+    for (const g of this.ghosts) {
+      const age = (millis() - g.born) / 1000;
+      const a = Math.max(18, 120 * Math.exp(-age / 14));
+      drawSign('triangle', x, this.yOf(g.level), base * (1 + g.level * 0.055),
+        { col: Palette.triColor(5), alpha: a * k, weight: 0.8 });
     }
 
-    if (this.charging) {
-      fadedText('…', this.CX, this.H * 0.14, Math.max(16, this.U * 0.03), Palette.ink, 150);
+    // LA ANTICIPACIÓN QUE CORRE — marca, cada vez más fina
+    if (hk > 0.01 && this.proj > 0.05) {
+      const layers = Math.ceil(this.proj);
+      for (let i = 1; i <= layers; i++) {
+        const lvl = this.exp + i;
+        const far = i / Math.max(1, layers);
+        drawSign('triangle', x, this.yOf(lvl), base * (1 + lvl * 0.06),
+          { col: Palette.triColor(6 + i), alpha: (150 * (1 - far * 0.75)) * hk * k,
+            weight: Math.max(0.5, 1.4 - i * 0.22) });
+      }
     }
-    if (this.msg) {
-      const a = this.outcomeT < 0.4 ? this.outcomeT / 0.4 : Math.max(0, 1 - (this.outcomeT - 1.6) / 1);
-      fadedText(this.msg, this.CX, this.H * 0.18,
-        Math.max(13, this.U * 0.019), this.outcome === 'up' ? Palette.accent : Palette.ink, 200 * a);
+
+    // LO ANTICIPADO — marca, más grande y más fino que lo real
+    const trem = this.holding ? 0 : (noise(3, tt * 5) - 0.5) * 4;
+    drawSign('triangle', x + trem, yExp, base * (1 + this.expShown * 0.06),
+      { col: Palette.triColor(6), alpha: 215 * k, weight: 1.4 + 0.8 * hk });
+
+    // la distancia entre lo real y lo esperado: la expectativa misma
+    if (Math.abs(yExp - yReal) > 6) {
+      stroke(Palette.triA(3, (90 + 80 * hk) * k));
+      strokeWeight(1);
+      const gw = base * 0.5;
+      line(x - gw, yExp, x + gw, yExp);
+      line(x - gw, yReal, x + gw, yReal);
     }
-    this.drawFrame();
+
+    // el desplome de la proyección al soltar
+    if (this.snap > 0.02) {
+      stroke(Palette.triA(2, 140 * this.snap * k));
+      strokeWeight(1);
+      const sy = yExp - this.snap * this.U * 0.2;
+      line(x - base, sy, x + base, sy);
+    }
+
+    // LO REAL — el sujeto: línea continua, gruesa, siempre más abajo
+    setDash(Dash.none);
+    drawSign('triangle', x, yReal, base * (1 + this.realShown * 0.05),
+      { col: Palette.triColor(0), alpha: 252 * k, weight: 3.2 });
+    setDash(Dash.none);
   }
 }

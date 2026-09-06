@@ -2,11 +2,13 @@
 /* ============================================================
  * ui.js — UIManager
  *
- * Dos vías de navegación conviven:
- *  1. UI explícita: menú hamburguesa (mapa del sistema) + chevrons.
- *  2. Navegación por signos: el signo del concepto encadenado
- *     aparece en escena (trail) y conduce al próximo estado.
- * Todo pensado para tacto: zonas grandes, cero hover.
+ * La única capa del sistema donde vive la palabra. Dentro de los
+ * nueve signos no hay ni un texto: se entienden por sí mismos.
+ * Acá están el menú (mapa del sistema y créditos), la constelación
+ * de progreso y los chevrones de navegación.
+ *
+ * Las zonas sensibles de la UI son deliberadamente chicas y
+ * pegadas al borde, para no robarle nunca un pulsar al signo.
  * ============================================================ */
 
 class UIManager {
@@ -15,27 +17,7 @@ class UIManager {
     this.menuOpen = false;
     this.menuT = 0;             // animación de apertura 0..1
     this.rows = [];             // filas del menú (para hit-test)
-
-    this.subtitle = null;       // { title, sub, hint, at }
-    this.trail = null;          // { to, caption, at }
   }
-
-  /* ---------------- subtítulos ---------------- */
-
-  showSubtitle(meta) {
-    // la home, los ceros y el cierre hablan por sí mismos
-    if (meta.kind !== 'concept') { this.subtitle = null; return; }
-    this.subtitle = { title: meta.title, sub: meta.sub, hint: meta.hint, at: millis() };
-  }
-
-  /* ---------------- signo encadenado ---------------- */
-
-  showTrail(toId, caption) {
-    if (this.trail && this.trail.to === toId) return;
-    this.trail = { to: toId, caption, at: millis() };
-  }
-
-  hideTrail() { this.trail = null; }
 
   /* ---------------- eventos ---------------- */
 
@@ -47,24 +29,17 @@ class UIManager {
     }
     if (type !== 'tap') return false;
     const x = a, y = b;
-    const u = unit();
 
-    // hamburguesa (arriba izquierda)
-    if (x < 76 && y < 76) { this.menuOpen = true; return true; }
+    // hamburguesa: esquina superior izquierda
+    if (x < 64 && y < 64) { this.menuOpen = true; return true; }
 
-    // chevrons laterales
+    // chevrones: franjas MUY angostas contra el borde y a media
+    // altura. Cuanto más chicas, menos le roban un pulsar al signo:
+    // para navegar están además el deslizamiento y el menú.
     const nav = this.app.scenes.neighbors(this.app.scenes.currentId);
-    if (nav && Math.abs(y - height / 2) < 70) {
-      if (x < 56 && nav.prev) { this.app.scenes.go(nav.prev); return true; }
-      if (x > width - 56 && nav.next) { this.app.scenes.go(nav.next); return true; }
-    }
-
-    // signo encadenado (abajo derecha)
-    if (this.trail && x > width - u * 0.32 && y > height - u * 0.24) {
-      const to = this.trail.to;
-      this.hideTrail();
-      this.app.scenes.go(to);
-      return true;
+    if (nav && Math.abs(y - height / 2) < 40) {
+      if (x < 27) { this.app.scenes.navPrev(); return true; }
+      if (x > width - 27) { this.app.scenes.navNext(); return true; }
     }
     return false;
   }
@@ -88,15 +63,13 @@ class UIManager {
   }
 
   draw() {
-    const sm = this.app.scenes;
-    const onHome = sm.currentId === 'home';
-    const inConclusion = sm.currentId === 'conclusion';
-
-    if (!inConclusion) this._drawConstellation();
-    if (!onHome && !inConclusion) this._drawChevrons();
+    const id = this.app.scenes.currentId;
+    // el cierre se mira sin nada encima; sólo queda la salida
+    if (id !== 'cierre') {
+      this._drawConstellation();
+      if (id !== 'home') this._drawChevrons();
+    }
     this._drawHamburger();
-    this._drawSubtitle();
-    this._drawTrail();
     if (this.menuT > 0.01) this._drawMenu();
   }
 
@@ -128,15 +101,11 @@ class UIManager {
     stroke(Palette.inkA(70));
     strokeWeight(1.6);
     noFill();
-    const cy = height / 2, s = 9;
-    if (nav.prev) {
-      const x = 22;
-      line(x + s, cy - s, x, cy); line(x, cy, x + s, cy + s);
-    }
-    if (nav.next) {
-      const x = width - 22;
-      line(x - s, cy - s, x, cy); line(x, cy, x - s, cy + s);
-    }
+    const cy = height / 2, s = 8;
+    const xl = 13;
+    line(xl + s, cy - s, xl, cy); line(xl, cy, xl + s, cy + s);
+    const xr = width - 13;
+    line(xr - s, cy - s, xr, cy); line(xr, cy, xr - s, cy + s);
     pop();
   }
 
@@ -166,63 +135,11 @@ class UIManager {
     pop();
   }
 
-  _drawSubtitle() {
-    if (!this.subtitle) return;
-    const age = (millis() - this.subtitle.at) / 1000;
-    let a = 1;
-    if (age < 0.5) a = Ease.outCubic(age / 0.5);
-    else if (age > 4.2) a = Math.max(0, 1 - (age - 4.2) / 1.2);
-    if (a <= 0) { this.subtitle = null; return; }
-    push();
-    textFont('Helvetica');
-    const u = unit();
-    const yBase = height - u * 0.085;
-    trackedText(this.subtitle.title, width / 2, yBase, Math.max(14, u * 0.024), 5, Palette.ink, 235 * a);
-    if (this.subtitle.sub) {
-      fadedText(this.subtitle.sub, width / 2, yBase + u * 0.033, Math.max(11, u * 0.015), Palette.ink, 140 * a);
-    }
-    if (this.subtitle.hint) {
-      fadedText(this.subtitle.hint, width / 2, yBase + u * 0.058, Math.max(10, u * 0.013), Palette.ink, 90 * a);
-    }
-    pop();
-  }
-
-  _drawTrail() {
-    if (!this.trail) return;
-    const age = (millis() - this.trail.at) / 1000;
-    const k = Ease.outCubic(clamp01(age / 0.6));
-    const u = unit();
-    const meta = sceneMeta(this.trail.to);
-    const sign = meta.subsystem ? SYSTEM.subs[meta.subsystem].sign : 'line';
-    const x = width - u * 0.09;
-    const y = height - u * 0.12;
-    const pulse = 1 + 0.1 * Math.sin(millis() / 260);
-
-    push();
-    // halo de invitación
-    noFill();
-    stroke(Palette.inkA(40 * k));
-    strokeWeight(1);
-    circle(x, y, u * 0.11 * pulse);
-    drawSign(sign, x, y, u * 0.045 * pulse, { col: Palette.accent, alpha: 235 * k, weight: 2 });
-    textFont('Helvetica');
-    textAlign(RIGHT, CENTER);
-    textSize(Math.max(10, u * 0.0135));
-    fill(Palette.inkA(150 * k));
-    noStroke();
-    text(this.trail.caption, x - u * 0.085, y - 8);
-    textSize(Math.max(10, u * 0.0125));
-    fill(Palette.inkA(90 * k));
-    text('tocá el signo para seguir', x - u * 0.085, y + 10);
-    pop();
-  }
-
   _drawMenu() {
     const k = this.menuT;
     push();
-    // velo
     noStroke();
-    const veil = color(Palette.bg); veil.setAlpha(242 * k);
+    const veil = color(Palette.bg); veil.setAlpha(251 * k);
     fill(veil);
     rect(0, 0, width, height);
 
@@ -231,13 +148,15 @@ class UIManager {
     this.rows = [];
 
     const items = this._menuItems();
-    const rowH = Math.min(44, (height - 140) / items.length);
+    // deja aire arriba (título) y abajo (créditos)
+    const rowH = Math.min(40, (height - 210) / items.length);
     const totalH = rowH * items.length;
     let y = height / 2 - totalH / 2 + rowH / 2;
-    const x0 = Math.max(38, width / 2 - 240);
-    const x1 = Math.min(width - 38, width / 2 + 240);
+    const x0 = Math.max(30, width / 2 - 250);
+    const x1 = Math.min(width - 30, width / 2 + 250);
 
-    trackedText('SISTEMA', width / 2, Math.max(44, y - rowH * 1.4), Math.max(13, u * 0.02), 8, Palette.ink, 200 * k);
+    trackedText('SISTEMA', width / 2, Math.max(40, y - rowH * 1.5),
+      Math.max(13, u * 0.02), 8, Palette.ink, 200 * k);
 
     const sm = this.app.scenes;
     for (const it of items) {
@@ -256,13 +175,19 @@ class UIManager {
       textAlign(LEFT, CENTER);
       noStroke();
       fill(Palette.inkA(a));
-      textSize(it.kind === 'header' ? Math.max(13, u * 0.018) : Math.max(12, u * 0.016));
-      text(it.label, ix + 30, y);
+      textSize(it.kind === 'header' ? Math.max(12, u * 0.017) : Math.max(11, u * 0.015));
+      const labelX = ix + 28;
+      text(it.label, labelX, y);
       if (it.note) {
+        // la glosa se achica hasta no tocar al nombre; si ni así entra,
+        // se calla: el nombre es lo que hay que poder leer
+        const room = (x1 - 12) - (labelX + textWidth(it.label) + 12);
         fill(Palette.inkA(a * 0.5));
-        textSize(Math.max(10, u * 0.012));
         textAlign(RIGHT, CENTER);
-        text(it.note, x1 - 12, y);
+        let ns = Math.max(9, u * 0.0115);
+        textSize(ns);
+        while (textWidth(it.note) > room && ns > 7.5) { ns -= 0.5; textSize(ns); }
+        if (textWidth(it.note) <= room) text(it.note, x1 - 12, y);
       }
       if (isCurrent) {
         noStroke();
@@ -273,13 +198,17 @@ class UIManager {
       y += rowH;
     }
 
-    fadedText(`recorridos · ${sm.visited.size} / 9`, width / 2, Math.min(height - 36, y + rowH * 0.8),
-      Math.max(10, u * 0.013), Palette.ink, 110 * k);
+    // gestos y créditos: el pie del mapa
+    const footY = Math.min(height - 58, y + rowH * 0.7);
+    fadedText('pulsar y mantener operan el signo · deslizar navega',
+      width / 2, footY, Math.max(9, u * 0.0115), Palette.ink, 95 * k);
+    fittedText(MEMBERS.join('   ·   '),
+      width / 2, Math.min(height - 26, footY + 28),
+      Math.max(9, u * 0.0125), width * 0.9, Palette.ink, 130 * k);
     pop();
   }
 
   _menuItems() {
-    const sm = this.app.scenes;
     const items = [{ id: 'home', kind: 'header', sign: 'line', label: 'ESTADO 0', note: 'inicio' }];
     for (const sid of SYSTEM.order) {
       const sub = SYSTEM.subs[sid];
@@ -288,9 +217,6 @@ class UIManager {
         const c = SYSTEM.concepts[cid];
         items.push({ id: cid, kind: 'concept', sign: sub.sign, label: c.title, note: c.gloss, indent: true });
       }
-    }
-    if (sm.visited.size >= 9) {
-      items.push({ id: 'conclusion', kind: 'header', sign: 'line', label: 'CIERRE', note: 'la experiencia concluye' });
     }
     return items;
   }

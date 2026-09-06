@@ -31,14 +31,15 @@ class App {
     S.register('incertidumbre', new IncertidumbreScene(this, 'incertidumbre'));
     S.register('ansiedad', new AnsiedadScene(this, 'ansiedad'));
     S.register('expectativa', new ExpectativaScene(this, 'expectativa'));
-    S.register('conclusion', new ConclusionScene(this, 'conclusion'));
+    S.register('cierre', new CierreScene(this, 'cierre'));
   }
 
   /**
    * Un solo punto de entrada para todos los gestos.
    * Prioridad: transición (bloquea) → UI → escena → navegación.
+   * Pulsar y mantener son del signo; deslizar es del sistema.
    */
-  dispatch(type, a, b, c, d) {
+  dispatch(type, a, b) {
     if (this.transition.active) return;
     if (this.ui.onEvent(type, a, b)) return;
 
@@ -48,17 +49,16 @@ class App {
     switch (type) {
       case 'down':      scene.onDown(a, b); break;
       case 'tap':       scene.onTap(a, b); break;
-      case 'dragStart': scene.onDragStart(a, b); break;
-      case 'drag':      scene.onDrag(a, b, c, d); break;
-      case 'dragEnd':   scene.onDragEnd(a, b); break;
       case 'holdStart': scene.onHoldStart(a, b); break;
+      case 'holdMove':  scene.onHoldMove(a, b); break;
       case 'holdEnd':   scene.onHoldEnd(a); break;
       case 'swipe':
-        if (scene.onSwipe(a, b)) return;
-        // navegación por defecto: el sistema entero se recorre swipeando
+        // a la escena se le pregunta una sola vez, dentro de nav*:
+        // así el chevron y el deslizamiento hacen exactamente lo mismo
         if (a === 'left') this.scenes.navNext();
         else if (a === 'right') this.scenes.navPrev();
         else if (a === 'down') this.scenes.navBack();
+        else if (a === 'up') this.scenes.navEnter();
         break;
     }
   }
@@ -77,6 +77,7 @@ class App {
     background(Palette.bg);
     this.scenes.draw();
     rectMode(CORNER); // higiene: la UI no hereda el modo de la escena
+    setDash(Dash.none);
     this.ui.draw();
     this.transition.draw();
   }
@@ -94,12 +95,19 @@ function setup() {
 }
 
 function draw() {
+  // El navegador no siempre avisa cuando cambia el tamaño (rotar el
+  // teléfono, volver de segundo plano, mostrar la barra de la app):
+  // si el lienzo quedó desfasado, se corrige acá mismo.
+  if (windowWidth > 0 && windowHeight > 0 &&
+      (width !== windowWidth || height !== windowHeight)) {
+    resizeCanvas(windowWidth, windowHeight);
+  }
   app.update();
   app.draw();
 }
 
 function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  if (windowWidth > 0 && windowHeight > 0) resizeCanvas(windowWidth, windowHeight);
 }
 
 /* puntero: touch primero (return false = sin gestos del navegador) */

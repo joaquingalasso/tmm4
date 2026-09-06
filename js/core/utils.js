@@ -1,7 +1,7 @@
 "use strict";
 /* ============================================================
  * utils.js — funciones de apoyo compartidas por todo el sistema
- * (easing, azar determinista, dibujo de signos, texto trackeado)
+ * (easing, azar determinista, dibujo de signos, tipos de línea)
  * ============================================================ */
 
 const Ease = {
@@ -19,6 +19,29 @@ const Ease = {
 
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 function clampv(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+/* ------------------------------------------------------------
+ * Línea continua y línea discontinua.
+ *
+ * El sistema tiene UNA sola línea discontinua, siempre la misma.
+ * Lo que distingue a un trazo de otro no es el patrón sino el
+ * GROSOR y la opacidad. La regla de lectura es constante:
+ *
+ *   línea continua   → el sujeto, lo que está siendo ahora
+ *   línea marca      → lo que el sujeto dejó: rastro, eco,
+ *                      proyección, lo que ya no es o todavía no es
+ * ------------------------------------------------------------ */
+const Dash = {
+  none:   [],
+  solida: [],
+  marca:  [6, 6],
+};
+
+/** Fija el tipo de línea discontinua del contexto de dibujo. */
+function setDash(pattern, offset = 0) {
+  drawingContext.setLineDash(pattern || []);
+  drawingContext.lineDashOffset = offset;
+}
 
 /** Azar determinista (Vera Molnár: el desorden controlado se puede repetir). */
 function mulberry32(seed) {
@@ -80,6 +103,35 @@ function trackedText(str, x, y, size, spacing, col, alpha = 255) {
   for (let i = 0; i < chars.length; i++) {
     text(chars[i], px, y);
     px += widths[i] + spacing;
+  }
+  pop();
+}
+
+/**
+ * Texto centrado que se achica hasta entrar en maxW; si aun en el
+ * cuerpo mínimo no entra, se parte en dos líneas por el separador.
+ * (Los nombres del grupo tienen que caber en cualquier pantalla.)
+ */
+function fittedText(str, x, y, size, maxW, col, alpha = 255, sep = '   ·   ') {
+  push();
+  textAlign(CENTER, CENTER);
+  const c = color(col); c.setAlpha(alpha);
+  fill(c); noStroke();
+  let s = size;
+  textSize(s);
+  while (textWidth(str) > maxW && s > 8) { s -= 0.5; textSize(s); }
+  if (textWidth(str) <= maxW) {
+    text(str, x, y);
+  } else {
+    const parts = str.split(sep);
+    const half = Math.ceil(parts.length / 2);
+    const l1 = parts.slice(0, half).join(sep);
+    const l2 = parts.slice(half).join(sep);
+    s = size;
+    textSize(s);
+    while (Math.max(textWidth(l1), textWidth(l2)) > maxW && s > 7) { s -= 0.5; textSize(s); }
+    text(l1, x, y - s * 0.75);
+    text(l2, x, y + s * 0.75);
   }
   pop();
 }

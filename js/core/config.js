@@ -7,6 +7,11 @@
  *  - sub1: la línea del tiempo (se lee de izquierda a derecha)
  *  - sub2: la línea del vínculo (une los círculos entre sí)
  *  - sub3: la línea del devenir (el camino que se dibuja al andar)
+ *
+ * INTERACCIÓN: los nueve signos aceptan sólo dos gestos.
+ *  - PULSAR:  opera el signo (inscribe, transmite, afirma, suma…)
+ *  - MANTENER: anima y resalta la cualidad que el signo describe.
+ * Todo lo demás (deslizar, menú) es navegación, nunca interacción.
  * ============================================================ */
 
 const SYSTEM = {
@@ -35,68 +40,51 @@ const SYSTEM = {
       sign: 'triangle',
       zero: 'zero3',
       tagline: 'incertidumbre · ansiedad · expectativa',
-      rule: 'sólo triángulos — se juega con el grosor de la línea',
+      rule: 'sólo triángulos — grosor y tipo de línea discontinua',
       concepts: ['incertidumbre', 'ansiedad', 'expectativa'],
     },
   },
 
   concepts: {
-    memoria:      { sub: 'sub1', title: 'MEMORIA',       gloss: 'como registro',
-                    hint: 'arrastrá: todo gesto queda inscripto en la línea' },
-    herencia:     { sub: 'sub1', title: 'HERENCIA',      gloss: 'como legado',
-                    hint: 'tocá un cuadrado: algo se transmite, algo muta' },
-    caducidad:    { sub: 'sub1', title: 'CADUCIDAD',     gloss: 'como lo perdido en el tránsito',
-                    hint: 'swipeá hacia adelante · retener también gasta' },
-    identidad:    { sub: 'sub2', title: 'IDENTIDAD',     gloss: 'como afirmación de sí',
-                    hint: 'tocá: cada anillo te afirma · mantené el centro' },
-    empatia:      { sub: 'sub2', title: 'EMPATÍA',       gloss: 'como comprensión del otro',
-                    hint: 'acompañá su movimiento, sin perseguirlo' },
-    colaboracion: { sub: 'sub2', title: 'COLABORACIÓN',  gloss: 'como coexistencia de lo diverso',
-                    hint: 'tocá para sumar diversos al círculo común' },
-    incertidumbre:{ sub: 'sub3', title: 'INCERTIDUMBRE', gloss: 'como desconocimiento del devenir',
-                    hint: 'swipeá para avanzar: el camino se dibuja al andar' },
-    ansiedad:     { sub: 'sub3', title: 'ANSIEDAD',      gloss: 'como pre-ocupación sobre el futuro',
-                    hint: 'intentá tocarlo… o quedate quieto' },
-    expectativa:  { sub: 'sub3', title: 'EXPECTATIVA',   gloss: 'como anticipación',
-                    hint: 'mantené presionado · soltá cuando no aguantes más' },
-  },
-
-  /* ----------------------------------------------------------
-   * Cadena conceptual: un ciclo que atraviesa los 9 estados.
-   * Cada concepto "conduce" a otro; el signo del destino aparece
-   * en escena y encadena la navegación (ej.: la expectativa que
-   * no se cumple da lugar a la ansiedad).
-   * ---------------------------------------------------------- */
-  chain: {
-    expectativa:  { to: 'ansiedad',      caption: 'la expectativa que no se cumple se vuelve ansiedad' },
-    ansiedad:     { to: 'incertidumbre', caption: 'la pre-ocupación nace de no conocer el devenir' },
-    incertidumbre:{ to: 'memoria',       caption: 'ante lo incierto, volvemos al registro' },
-    memoria:      { to: 'identidad',     caption: 'lo que registramos nos afirma' },
-    identidad:    { to: 'empatia',       caption: 'quien se afirma puede comprender al otro' },
-    empatia:      { to: 'colaboracion',  caption: 'comprender permite coexistir' },
-    colaboracion: { to: 'herencia',      caption: 'lo hecho en común se vuelve legado' },
-    herencia:     { to: 'caducidad',     caption: 'todo legado pierde algo en el tránsito' },
-    caducidad:    { to: 'expectativa',   caption: 'ante lo perdido, volvemos a anticipar' },
+    memoria:      { sub: 'sub1', title: 'MEMORIA',       gloss: 'como registro' },
+    herencia:     { sub: 'sub1', title: 'HERENCIA',      gloss: 'como legado' },
+    caducidad:    { sub: 'sub1', title: 'CADUCIDAD',     gloss: 'como lo perdido en el tránsito' },
+    identidad:    { sub: 'sub2', title: 'IDENTIDAD',     gloss: 'como afirmación de sí' },
+    empatia:      { sub: 'sub2', title: 'EMPATÍA',       gloss: 'como comprensión del otro' },
+    colaboracion: { sub: 'sub2', title: 'COLABORACIÓN',  gloss: 'como coexistencia de lo diverso' },
+    incertidumbre:{ sub: 'sub3', title: 'INCERTIDUMBRE', gloss: 'como desconocimiento del devenir' },
+    ansiedad:     { sub: 'sub3', title: 'ANSIEDAD',      gloss: 'como pre-ocupación sobre el futuro' },
+    expectativa:  { sub: 'sub3', title: 'EXPECTATIVA',   gloss: 'como anticipación' },
   },
 };
+
+/** Integrantes del grupo, en orden alfabético. */
+const MEMBERS = [
+  'IVÁN SALDAÑA',
+  'JOAQUÍN GALASSO',
+  'MATHILDA ESTEBAN',
+  'MAURO SCAFFIDI',
+  'ZOE ULLUA',
+];
 
 /** Metadatos de una escena cualquiera (para transiciones y menú). */
 function sceneMeta(id) {
   if (SYSTEM.concepts[id]) {
     const c = SYSTEM.concepts[id];
-    return { kind: 'concept', title: c.title, sub: c.gloss, hint: c.hint, subsystem: c.sub };
+    return { kind: 'concept', title: c.title, sub: c.gloss, subsystem: c.sub };
   }
   for (const sid of SYSTEM.order) {
     if (SYSTEM.subs[sid].zero === id) {
       const s = SYSTEM.subs[sid];
-      return { kind: 'zero', title: s.name, sub: s.tagline, hint: s.rule, subsystem: sid };
+      return { kind: 'zero', title: s.name, sub: s.tagline, subsystem: sid };
     }
   }
+  if (id === 'cierre') {
+    // sin título: el cierre no se anuncia, se ve
+    return { kind: 'cierre', title: '', sub: '', subsystem: null };
+  }
   if (id === 'home') {
-    return { kind: 'home', title: 'ESTADO 0', sub: 'un sistema · tres familias · nueve estados', hint: 'tocá una figura para entrar', subsystem: null };
+    return { kind: 'home', title: 'ESTADO 0', sub: 'un sistema · tres familias · nueve estados', subsystem: null };
   }
-  if (id === 'conclusion') {
-    return { kind: 'conclusion', title: 'CIERRE', sub: 'todo cabe en una línea', hint: '', subsystem: null };
-  }
-  return { kind: 'unknown', title: id.toUpperCase(), sub: '', hint: '', subsystem: null };
+  return { kind: 'unknown', title: id.toUpperCase(), sub: '', subsystem: null };
 }
