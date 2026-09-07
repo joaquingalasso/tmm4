@@ -31,7 +31,7 @@ No hay ningún tercer gesto. Deslizar y el menú son navegación, nunca interacc
 |---|---|---|
 | MEMORIA | inscribe un cuadrado en la línea | una cabeza lectora relee: cada marca recupera su opacidad original y tiende un hilo al eje |
 | HERENCIA | la generación viva cede su opacidad y engendra la siguiente (no avanza sola) | todos los antepasados apagados reaparecen con el gris exacto que transmitieron |
-| CADUCIDAD | frena el tránsito un instante; la resistencia se afloja sola y nunca alcanza | lo apura: todo se acelera y lo que quedaba se deshace más rápido |
+| CADUCIDAD | **lo apura**: cada pulso es un empujón hacia el corte y se come un poco más de línea. El empujón se afloja solo, pero lo gastado no vuelve | **lo frena**: retener es un gesto sostenido, y mientras el dedo está puesto el tránsito casi se detiene y la línea entera se recupera. Casi: nunca del todo, y al soltar vuelve a andar |
 | IDENTIDAD | suma un anillo de color | los anillos dejan de vagar, se alinean en una sola diana y laten juntos |
 | EMPATÍA | **dar y recibir**: te acercás un paso y en el mismo gesto le pasás algo de tu color y te llevás algo del suyo. Los dos cambian a la par, y la línea que los une se enciende con lo que acaba de pasar por ella | **te ponés en su lugar**: tu círculo deja el suyo, viaja hasta él y en el camino toma su tamaño y su color, hasta quedar al lado, idéntico |
 | COLABORACIÓN | suma un diverso al círculo común, donde anda por su cuenta | **se ponen de acuerdo**: cada uno vuelve a su puesto en la trama y cambia su ritmo propio por el de todos. La nube dispersa se cierra en una sola figura que gira entera, en un mismo sentido y a un mismo paso |

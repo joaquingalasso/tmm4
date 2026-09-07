@@ -246,20 +246,22 @@ class HerenciaScene extends Scene {
  * Lo único que se puede hacer con lo que caduca es discutirle
  * el ritmo, y perder esa discusión:
  *
- * PULSAR   frena: el tránsito se resiste un instante y la parte
- *          entera de la línea se recupera un poco. La resistencia
- *          se afloja sola —hay que insistir— y nunca alcanza.
- * MANTENER apura: todo se acelera, la línea entera se come a sí
- *          misma y lo que quedaba se deshace más rápido.
+ * MANTENER frena: retener es un gesto sostenido, y mientras el dedo
+ *          está puesto el tránsito casi se detiene y la parte entera
+ *          de la línea se recupera. Casi: nunca del todo, y en cuanto
+ *          se suelta vuelve a andar. Se lo puede demorar, no parar.
+ * PULSAR   apura: cada pulso es un empujón que lo manda más rápido
+ *          hacia el corte y se come un poco más de línea. El empujón
+ *          se afloja solo, pero lo que ya se gastó no vuelve.
  * ------------------------------------------------------------ */
 class CaducidadScene extends Scene {
   enter() {
     super.enter();
     this.convoy = [];      // { p 0..1, s }
     this.shards = [];      // { x, y, vx, vy, life }
-    this.resist = 0;       // cuánto se está frenando ahora mismo, 0..1
-    this.flash = 0;        // el golpe visible de cada frenada
-    this.rush = null;      // la voz del tránsito apurado
+    this.push = 0;         // cuánto se lo está empujando ahora, 0..1
+    this.flash = 0;        // el golpe visible de cada empujón
+    this.brake = null;     // la voz del tránsito retenido
     // el convoy ya venía andando antes de que llegáramos
     for (let i = 0; i < 5; i++) this.convoy.push(this.make(0.9 - i * this.GAP));
   }
@@ -275,36 +277,38 @@ class CaducidadScene extends Scene {
 
   sqX(sq) { return lerp(-this.U * 0.1, this.cutX(), sq.p); }
 
-  /** Frenar: se puede, un poco, por un rato. */
+  /** Apurarlo: cada pulso es un empujón hacia el corte. */
   onTap() {
-    this.resist = Math.min(1, this.resist + 0.42);
+    this.push = Math.min(1, this.push + 0.42);
     this.flash = 1;
-    // frenar: una nota que se va para abajo y no llega a ningún lado
-    Audio.tiempo(6, { gain: 0.3, dur: 0.45, glide: 0.55, cut: 900 });
+    // el empujón: una nota que se va para arriba y se escapa
+    Audio.tiempo(2, { gain: 0.3, dur: 0.4, glide: 1.9, cut: 1300 });
   }
 
-  /** Apurar el tránsito se oye: una fuga que sube mientras se sostiene. */
+  /** Retenerlo se oye: una nota grave que se tensa mientras se sostiene. */
   onHoldStart() {
     this.holding = true;
-    this.rush = Audio.voice(Audio.note(2, 38),
-      { type: 'triangle', gain: 0.09, cut: 900, glide: 0.3 });
+    this.brake = Audio.voice(Audio.note(6, 38),
+      { type: 'triangle', gain: 0.05, cut: 800, glide: 0.35 });
   }
   onHoldEnd() {
     this.holding = false;
-    if (this.rush) { this.rush.stop(0.4); this.rush = null; }
+    if (this.brake) { this.brake.stop(0.5); this.brake = null; }
   }
 
   update(dt) {
     this.updateHold(dt, 4);
     const hk = this.holdK;
 
-    // la resistencia se afloja sola: frenar nunca es definitivo
-    this.resist = Math.max(0, this.resist - dt * 0.55);
+    // el empujón se afloja solo: apurarlo tampoco es definitivo
+    this.push = Math.max(0, this.push - dt * 0.55);
     this.flash = Math.max(0, this.flash - dt * 2.4);
 
-    // el paso del tránsito: frenado por el pulso, apurado por el sostén
-    const speed = 0.038 * (1 - 0.8 * this.resist) * (1 + 2.6 * hk);
-    if (this.rush) this.rush.set(Audio.note(2 + 8 * hk, 38), 0.03 + 0.1 * hk);
+    // el paso del tránsito: apurado por el pulso, retenido por el sostén.
+    // El 0,15 es el piso: por más que se lo sostenga, nunca se detiene.
+    const speed = 0.038 * (1 + 2.4 * this.push) * (1 - 0.85 * hk);
+    // la nota del freno se tensa hacia abajo con el esfuerzo
+    if (this.brake) this.brake.set(Audio.note(6 - 4 * hk, 38), 0.03 + 0.07 * hk);
 
     for (let i = this.convoy.length - 1; i >= 0; i--) {
       const sq = this.convoy[i];
@@ -346,8 +350,9 @@ class CaducidadScene extends Scene {
     rectMode(CENTER);
 
     // La línea del tránsito: entera hasta donde todavía alcanza,
-    // marcada después. Frenar la recupera un poco; apurar se la come.
-    const solidX = this.W * (0.58 + 0.2 * this.resist - 0.42 * hk);
+    // marcada después. Retenerlo la recupera un poco; los empujones
+    // se la comen.
+    const solidX = this.W * (0.58 + 0.2 * hk - 0.3 * this.push);
     setDash(Dash.none);
     stroke(Palette.inkA((130 + 90 * this.flash) * k));
     strokeWeight(1.6);
@@ -368,6 +373,7 @@ class CaducidadScene extends Scene {
       const sz = sq.s * (0.45 + 0.55 * decay);
       const a = 235 * Math.pow(decay, 1.2) * k;
       const y = ly - sz * 0.62;
+      // retenido, el cuadrado tiembla: se lo está sosteniendo a pulso
       const tremble = hk * (noise(x, millis() / 60) - 0.5) * 6;
       if (sq.p < 0.55) {
         setDash(Dash.none);
