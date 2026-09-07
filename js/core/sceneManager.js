@@ -37,6 +37,7 @@ class SceneManager {
     if (!this.scenes[id] || id === this.currentId) return;
     const meta = sceneMeta(id);
     this.app.transition.run(meta.title, meta.sub, () => {
+      Audio.stopScene();          // ninguna voz sobrevive al cambio de signo
       if (this.current) this.current.exit();
       this.currentId = id;
       this.enterAt = millis();
@@ -94,6 +95,7 @@ class SceneManager {
     if (meta.kind === 'concept') return SYSTEM.subs[meta.subsystem].zero;
     if (meta.kind === 'zero') return 'home';
     if (meta.kind === 'cierre') return 'home';
+    if (meta.kind === 'home') return 'inicio';   // salir del todo: la portada
     return null;
   }
 

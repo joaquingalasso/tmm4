@@ -12,11 +12,65 @@
  * No hace falta decirlo: se ve.
  *
  * Pulsar el punto vuelve a empezar.
+ *
+ * El sonido hace el mismo recorrido: primero las nueve voces, cada
+ * una en la materia de su subsistema; después las tres familias
+ * reconociéndose en un acorde; después las tres materias juntas
+ * sobre la línea; y al final una sola nota grave que se contrae
+ * con ella y queda latiendo en el punto.
  * ============================================================ */
 
 class CierreScene extends Scene {
   enter() {
     super.enter();
+    this.done = new Set();   // señales ya disparadas
+    this.vPunto = null;      // la nota que queda en el punto
+  }
+
+  /** Dispara una sola vez, al pasar el segundo indicado. */
+  cue(name, at, fn) {
+    if (this.done.has(name) || this.t() < at) return;
+    this.done.add(name);
+    fn();
+  }
+
+  /** La voz de cada subsistema, en su materia. */
+  voz(sid, i, gain, delay) {
+    if (sid === 'sub1') Audio.tiempo(2 + i * 3, { gain, delay });
+    else if (sid === 'sub2') Audio.vinculo(Palette.circleColor(i * 3 + 1), { gain, delay, dur: 2 });
+    else Audio.devenir(2 + i * 2, { gain, delay, dur: 1.1 });
+  }
+
+  update(dt) {
+    // las nueve, una por una, en el orden en que aparecen
+    SYSTEM.order.forEach((sid, r) => {
+      for (let i = 0; i < 3; i++) {
+        this.cue('n' + r + i, 0.3 + (r * 3 + i) * 0.12,
+          () => this.voz(sid, i, 0.16, 0));
+      }
+    });
+    // cada familia se reconoce: un acorde por subsistema
+    SYSTEM.order.forEach((sid, r) => {
+      this.cue('fam' + r, 3.0 + r * 0.55, () => {
+        for (let i = 0; i < 3; i++) this.voz(sid, i, 0.11, i * 0.03);
+      });
+    });
+    // los tres se acuestan sobre la línea: las tres materias a la vez
+    this.cue('linea', 5.4, () => {
+      Audio.tiempo(0, { gain: 0.16, dur: 1.4 });
+      Audio.vinculo(Palette.circleColor(4), { gain: 0.13, dur: 3.2 });
+      Audio.devenir(0, { gain: 0.12, dur: 2.2 });
+    });
+    // la línea se contrae: una nota que baja y se cierra en el punto
+    this.cue('punto', 7.8, () => {
+      Audio.blip(Audio.note(5, 38), { type: 'triangle', dur: 1.6, gain: 0.2, cut: 900, glide: 0.5 });
+      this.vPunto = Audio.voice(Audio.note(0, 38),
+        { type: 'sine', gain: 0.055, cut: 700, glide: 0.4 });
+    });
+    // y el punto late
+    if (this.vPunto) {
+      this.vPunto.set(Audio.note(0, 38), 0.04 + 0.025 * (0.5 + 0.5 * Math.sin(this.t() * 2.4)));
+    }
   }
 
   /** Progreso 0..1 de una fase [a, b], en segundos de escena. */
@@ -27,6 +81,7 @@ class CierreScene extends Scene {
 
   onTap() {
     if (!this.restarted()) return;
+    Audio.blip(Audio.note(9, 50), { type: 'sine', dur: 0.9, gain: 0.16 });
     this.app.scenes.reset();
     this.app.scenes.go('home');
   }

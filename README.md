@@ -63,6 +63,40 @@ escapa y lo real van en línea continua; su camino, sus ecos y sus anticipacione
 van en marca. Lo que diferencia una marca de otra es el **grosor** y la
 opacidad: cuanto más fina y más apagada, menos real.
 
+## Sonido
+
+El sonido se genera, no se reproduce: no hay archivos ni librerías de audio,
+hay osciladores (`js/core/audio.js`). Y sigue la misma partición que la imagen —
+cada subsistema tiene su materia sonora, igual que tiene su figura y su variable:
+
+| Subsistema | Materia sonora | Qué dice |
+|---|---|---|
+| **EL TIEMPO** | pulsos secos y graves | la **opacidad es el volumen**: lo que se ve más apagado suena más bajo |
+| **EL VÍNCULO** | notas sostenidas y cálidas | el **color es la altura**: el tono de cada círculo es su nota |
+| **EL DEVENIR** | trazo fino y claro | la **línea continua es un tono continuo**; lo discontinuo, sonido interrumpido |
+
+Todo cae en una escala pentatónica: cualquier cosa que arme quien toca suena
+junta, no hay manera de desafinar el sistema.
+
+Algunos ejemplos de qué se oye:
+
+- En **memoria**, cada marca tiene su nota según su distancia al eje, y mantener
+  es escuchar la cabeza lectora tocarlas de nuevo, en orden, más bajo cuanto más
+  viejas.
+- En **herencia**, cada generación es un acorde: una nota por descendiente, y la
+  nota de cada uno es su gris. Al mutar el gris, muta la nota.
+- En **empatía**, como el color es la altura, todo el signo se oye solo:
+  compartir acerca las dos notas y ponerse en su lugar las lleva al **unísono**.
+  Medido: 659 y 330 Hz al entrar, 587 y 370 compartiendo, 370 y 370 estando en
+  su lugar.
+- En **colaboración**, en reposo cada uno suena cuando le toca a él y se oye un
+  goteo disperso; al ponerse de acuerdo entran todos en un mismo pulso.
+- En **ansiedad**, el temblor del trazo es el vibrato de la nota, y los ecos
+  acumulados son un fondo que se espesa y se desafina.
+
+Los navegadores no dejan sonar sin un gesto: el primer contacto con la pantalla
+abre el audio. Se puede apagar desde el menú, al pie del mapa.
+
 ## Navegación
 
 Siempre igual, en todo el sistema. Nunca entra sola a un signo ni salta al estado 0.
@@ -91,14 +125,39 @@ vuelven como en la grilla del estado 0, cada familia se reconoce y colapsa en un
 solo signo, los tres se acuestan sobre la línea y la línea se contrae a un
 punto. Pulsar el punto vuelve a empezar. No dice nada: se ve.
 
+## La portada y las dos decisiones
+
+Al cargar hay una portada con la línea, los tres signos que la atraviesan y dos
+interruptores. Son signos, no palabras, porque tienen que servir justamente
+cuando la palabra está apagada:
+
+| | |
+|---|---|
+| ondas que salen | **sonido** sí o no |
+| tres renglones | **texto** sí o no |
+
+**Por defecto el sistema arranca sin texto y con sonido.** Las dos decisiones se
+recuerdan de una visita a la otra, y se pueden cambiar en cualquier momento
+desde el pie del menú. Tocar en cualquier otro lado de la portada entra.
+
 ## Texto
 
 Dentro de los nueve signos no hay ni una palabra: se entienden por sí mismos.
-La palabra vive sólo en las superficies de navegación — el estado 0 (el nombre
-sobre cada miniatura y los integrantes abajo), las pantallas cero, el menú, y el
-nombre del destino durante la transición.
-
 Ningún signo tiene textura de fondo: el fondo está vacío en los nueve.
+
+Con el texto **apagado** —el estado por defecto— no queda una letra en ningún
+lado, y todo lo que hacía la palabra lo hace un signo:
+
+- el **estado 0** es la grilla de nueve miniaturas vivas, sin rótulos;
+- cada **pantalla cero** encabeza con el signo de su subsistema (□, ○, △) en
+  lugar de su nombre;
+- las **transiciones** muestran sólo la línea, sin el nombre del destino;
+- y el **menú se vuelve un mapa**: arriba la línea (el estado 0) y debajo una
+  fila por subsistema, con su signo al frente y sus tres signos vivos al lado.
+  Los trece destinos se tocan igual que antes, sin leer nada.
+
+Con el texto **encendido** vuelven los nombres, las glosas, el título, la
+cátedra y los integrantes, y el menú vuelve a ser la lista del sistema.
 
 ## Estructura
 

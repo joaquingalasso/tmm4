@@ -91,6 +91,7 @@ function drawSign(type, x, y, s, opt = {}) {
 
 /** Texto centrado con tracking manual (tipografía del sistema). */
 function trackedText(str, x, y, size, spacing, col, alpha = 255) {
+  if (!Txt.on) return;
   push();
   textSize(size);
   textAlign(LEFT, CENTER);
@@ -113,6 +114,7 @@ function trackedText(str, x, y, size, spacing, col, alpha = 255) {
  * (Los nombres del grupo tienen que caber en cualquier pantalla.)
  */
 function fittedText(str, x, y, size, maxW, col, alpha = 255, sep = '   ·   ') {
+  if (!Txt.on) return;
   push();
   textAlign(CENTER, CENTER);
   const c = color(col); c.setAlpha(alpha);
@@ -136,14 +138,68 @@ function fittedText(str, x, y, size, maxW, col, alpha = 255, sep = '   ·   ') {
   pop();
 }
 
+/**
+ * Cuántas líneas va a ocupar un fittedText. Sirve para reservarle
+ * el alto antes de dibujarlo y poder repartir el aire parejo.
+ */
+function fittedLines(str, size, maxW) {
+  if (!Txt.on) return 0;
+  push();
+  let s = size;
+  textSize(s);
+  while (textWidth(str) > maxW && s > 8) { s -= 0.5; textSize(s); }
+  const n = textWidth(str) <= maxW ? 1 : 2;
+  pop();
+  return n;
+}
+
 /** Texto simple centrado con alpha. */
 function fadedText(str, x, y, size, col, alpha = 255) {
+  if (!Txt.on) return;
   push();
   textSize(size);
   textAlign(CENTER, CENTER);
   const c = color(col); c.setAlpha(alpha);
   fill(c); noStroke();
   text(str, x, y);
+  pop();
+}
+
+/**
+ * Los dos interruptores del sistema, dibujados como signos: un
+ * círculo con lo que enciende adentro, y una barra atravesada
+ * cuando está apagado. No dicen su nombre con letras porque tienen
+ * que funcionar justamente cuando no hay letras.
+ */
+function drawToggle(kind, x, y, s, on, alpha = 220) {
+  push();
+  translate(x, y);
+  noFill();
+  const a = alpha * (on ? 1 : 0.55);
+  stroke(Palette.inkA(alpha * 0.55));
+  strokeWeight(1.3);
+  circle(0, 0, s * 2);
+  stroke(Palette.inkA(a));
+  strokeWeight(1.5);
+  const r = s * 0.55;
+  if (kind === 'sonido') {
+    // ondas que salen: la línea del sistema, viajando
+    for (let i = 1; i <= 3; i++) {
+      arc(-r * 0.75, 0, r * i * 0.75, r * i * 0.75, -0.75, 0.75);
+    }
+  } else {
+    // renglones: el signo de la palabra, sin usar ninguna
+    for (let i = 0; i < 3; i++) {
+      const w = r * (i === 2 ? 0.95 : 1.5);
+      const yy = -r * 0.52 + i * r * 0.52;
+      line(-r * 0.75, yy, -r * 0.75 + w, yy);
+    }
+  }
+  if (!on) {
+    stroke(Palette.inkA(alpha));
+    strokeWeight(1.6);
+    line(-s * 0.68, s * 0.68, s * 0.68, -s * 0.68);
+  }
   pop();
 }
 

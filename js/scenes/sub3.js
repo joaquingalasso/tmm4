@@ -46,7 +46,15 @@ class IncertidumbreScene extends Scene {
     this.offsetX = 0;
     this.offsetTarget = 0;
     this.fan = null;          // abanico de futuros, sólo mientras se mantiene
+    this.fanVoices = [];
+    // el sujeto va en línea continua: su sonido también. La altura del
+    // tono es la altura del camino — subir la montaña es subir la nota.
+    this.vWalk = Audio.voice(Audio.note(this.degOf(this.baseY), 45),
+      { type: 'sawtooth', gain: 0.07, cut: 1200, glide: 0.25 });
   }
+
+  /** La altura en pantalla, hecha grado de la escala. */
+  degOf(y) { return Math.round(clampv((this.H * 0.78 - y) / (this.H * 0.06), 0, 11)); }
 
   pushVert() {
     // perfil de montaña: casi siempre se invierte la pendiente anterior
@@ -74,6 +82,9 @@ class IncertidumbreScene extends Scene {
     }
     this.ghosts = opts;
     this.ghostT = 0;
+    // los tres futuros apenas se insinúan: suenan flojos y sin decidirse
+    opts.forEach((g, i) => Audio.devenir(this.degOf(g.y),
+      { gain: 0.05, dur: 0.9, delay: i * 0.12, cut: 1100 }));
   }
 
   /** Ramifica desde un punto: el árbol de lo que todavía no es. */
@@ -101,11 +112,21 @@ class IncertidumbreScene extends Scene {
     this.holding = true;
     const last = this.verts[this.verts.length - 1];
     this.fan = this.branch(last, 3, 1234 + this.verts.length * 31);
+    // todo lo que podría pasar, sonando a la vez y muy bajo: un
+    // racimo sin resolver, porque ninguno de esos futuros existe
+    for (let i = 0; i < 4; i++) {
+      const nd = this.fan[Math.floor(Math.random() * this.fan.length)];
+      this.fanVoices.push(Audio.voice(Audio.note(this.degOf(nd.y), 45),
+        { type: 'sawtooth', gain: 0.022, cut: 800, glide: 0.4,
+          vibRate: 4 + Math.random() * 3, vibDepth: 3 }));
+    }
   }
 
   onHoldEnd() {
     this.holding = false;
     this.fan = null;   // mirar no decide nada
+    for (const v of this.fanVoices) v.stop(0.3);
+    this.fanVoices = [];
   }
 
   update(dt) {
@@ -120,6 +141,8 @@ class IncertidumbreScene extends Scene {
         this.ghosts = null;
         this.sliding = true;
         this.slideT = 0;
+        // recién al pisarlo suena de verdad: lo posible no sonaba
+        Audio.devenir(this.degOf(pick.y), { gain: 0.16, dur: 0.6 });
       }
     }
     if (this.sliding) {
@@ -132,6 +155,7 @@ class IncertidumbreScene extends Scene {
       }
     }
     this.offsetX += (this.offsetTarget - this.offsetX) * Math.min(1, dt * 3);
+    if (this.vWalk) this.vWalk.set(Audio.note(this.degOf(this.walkerPos().y), 45), 0.07);
   }
 
   walkerPos() {
@@ -247,6 +271,15 @@ class AnsiedadScene extends Scene {
     this.echoes = [];             // { x, y, s, a, seed, temp }
     this.spawnT = 0;
     this.shake = 0;               // el temblor de toda la escena
+    // el que se escapa: línea continua, tono continuo, y un temblor
+    // que crece con el nervio
+    this.vTri = Audio.voice(Audio.note(5, 52),
+      { type: 'sawtooth', gain: 0.075, cut: 1500, glide: 0.05,
+        vibRate: 5, vibDepth: 0 });
+    // y el fondo de todo lo que quedó de perseguirlo: cuantos más
+    // ecos, más espeso y más desafinado
+    this.vEcho = Audio.voice(Audio.note(4, 45),
+      { type: 'sawtooth', gain: 0, cut: 700, glide: 0.5 });
   }
 
   size() { return this.U * 0.12; }
@@ -298,6 +331,8 @@ class AnsiedadScene extends Scene {
     this.tri.tx = dest.x;
     this.tri.ty = dest.y;
     this.jit = Math.min(1, this.jit + 0.18);
+    // el escape: un salto de altura que no termina de resolverse
+    Audio.devenir(4 + Math.floor(Math.random() * 6), { gain: 0.17, dur: 0.28, cut: 2400 });
   }
 
   onHoldStart() { this.holding = true; }
@@ -347,6 +382,20 @@ class AnsiedadScene extends Scene {
     const chase = 9 + 14 * hk;
     this.tri.x += (this.tri.tx - this.tri.x) * Math.min(1, dt * chase);
     this.tri.y += (this.tri.ty - this.tri.y) * Math.min(1, dt * chase);
+
+    // el nervio se oye: cuanto más alto, más rápido y más ancho el
+    // temblor de la nota, y más espeso el fondo de los ecos
+    const j = this.jit;
+    if (this.vTri) {
+      this.vTri.vib(4 + 13 * j, 1 + 26 * j);
+      this.vTri.set(Audio.note(5, 52), 0.06 + 0.05 * j);
+      this.vTri.cutoff(1100 + 2200 * j);
+    }
+    if (this.vEcho) {
+      const carga = clamp01(this.echoes.length / 14);
+      this.vEcho.set(Audio.note(4, 45) * (1 + 0.02 * j), 0.075 * carga * (0.4 + 0.6 * j));
+      this.vEcho.vib(2 + 9 * j, 2 + 18 * j);
+    }
   }
 
   draw() {
@@ -424,6 +473,13 @@ class ExpectativaScene extends Scene {
     this.proj = 0;            // cuánto corrió la anticipación al mantener
     this.camY = 0;
     this.snap = 0;
+    // lo real suena lleno; lo anticipado, más agudo y más flaco. Lo que
+    // se oye todo el tiempo es el intervalo entre los dos: eso es la
+    // expectativa, y no se cierra nunca.
+    this.vReal = Audio.voice(Audio.note(0, 45),
+      { type: 'sawtooth', gain: 0.085, cut: 1300, glide: 0.18 });
+    this.vExp = Audio.voice(Audio.note(3, 45),
+      { type: 'triangle', gain: 0.04, cut: 2400, glide: 0.3 });
   }
 
   stepY() { return this.U * 0.17; }
@@ -434,6 +490,7 @@ class ExpectativaScene extends Scene {
     // acto la anticipación se corre más arriba
     this.real += (this.exp - this.real) * 0.62;
     this.exp = this.real + 0.85 + Math.random() * 0.5;
+    Audio.devenir(Math.round(this.real * 1.6), { gain: 0.15, dur: 0.4 });
   }
 
   onHoldStart() { this.holding = true; }
@@ -454,6 +511,14 @@ class ExpectativaScene extends Scene {
     // misma altura y lo que se mueve alrededor es el resto.
     const target = this.realShown * this.stepY();
     this.camY += (target - this.camY) * Math.min(1, dt * 2.2);
+
+    // las dos alturas siguen a las dos figuras
+    if (this.vReal) this.vReal.set(Audio.note(Math.round(this.realShown * 1.6), 45), 0.085);
+    if (this.vExp) {
+      this.vExp.set(Audio.note(Math.round(this.expShown * 1.6), 45),
+                    0.032 + 0.03 * this.holdK);
+      this.vExp.cutoff(2600 - 900 * clamp01(this.proj / 6));
+    }
   }
 
   draw() {

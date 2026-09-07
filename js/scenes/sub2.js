@@ -44,9 +44,17 @@ class IdentidadScene extends Scene {
       phase: Math.random() * TWO_PI,
       born: millis(),
     });
+    // la nota del anillo es su color: la diana que armás es un acorde
+    // que no tiene nadie más
+    Audio.vinculo(Palette.circleColor(this.colIdx), { gain: 0.15, dur: 2.4 });
   }
 
-  onHoldStart() { this.holding = true; }
+  /** Afirmarse es sonar entero: todos los anillos a la vez. */
+  onHoldStart() {
+    this.holding = true;
+    this.rings.forEach((rg, i) =>
+      Audio.vinculo(rg.col, { gain: 0.11, dur: 2.8, delay: i * 0.035 }));
+  }
   onHoldEnd() { this.holding = false; }
 
   update(dt) { this.updateHold(dt, 4); }
@@ -140,6 +148,12 @@ class EmpatiaScene extends Scene {
     this.meR = this.myR();
     this._recolor();
     this.meCol = this.myBase;
+
+    // Cada uno suena su color. Como el color ES la altura, todo el
+    // signo se oye solo: al compartir, las dos notas se acercan; al
+    // ponerme en su lugar, llegan al unísono; al soltarse, se separan.
+    this.vMe = Audio.voice(Audio.hueNote(this.meCol), { type: 'sine', gain: 0.1, glide: 0.12 });
+    this.vOther = Audio.voice(Audio.hueNote(this.other.col), { type: 'sine', gain: 0.1, glide: 0.12 });
   }
 
   myR() { return this.U * 0.072; }
@@ -177,6 +191,9 @@ class EmpatiaScene extends Scene {
     const o = this.other;
     this.share = Math.min(this.SHARE_MAX, this.share + 0.09);
     this.flash = 1;
+    // el intercambio suena de los dos lados a la vez
+    Audio.vinculo(this.meCol, { gain: 0.13, dur: 0.9 });
+    Audio.vinculo(o.col, { gain: 0.13, dur: 0.9, delay: 0.05 });
 
     const minGap = (this.myR() + o.r) * 1.7;   // cerca, pero sin encimarse
     const d = dist(this.homeT.x, this.homeT.y, o.x, o.y);
@@ -235,6 +252,11 @@ class EmpatiaScene extends Scene {
     this.me.y = lerp(this.home.y, o.y + Math.sin(ang) * (o.r + r) * 1.14, s);
     this.meR = r;
     this.meCol = Palette.mixHue(this.myBase, o.col, s);
+
+    // las dos notas siguen a los dos colores, frame a frame
+    const swell = 0.09 + 0.06 * this.flash + 0.03 * s;
+    if (this.vMe) this.vMe.set(Audio.hueNote(this.meCol), swell);
+    if (this.vOther) this.vOther.set(Audio.hueNote(o.col), swell);
   }
 
   draw() {
@@ -313,6 +335,7 @@ class ColaboracionScene extends Scene {
     this.members = [];   // { slot, x, y, col, k, sz }
     this.free = [];      // { x, y, col, vx, vy, sz }
     this.rot = 0;
+    this.beat = 0;        // el compás común, el que se toma al acordar
     this.colIdx = Math.floor(Math.random() * 10);
     // trama concéntrica: anillos de puestos
     this.slots = [];
@@ -348,6 +371,28 @@ class ColaboracionScene extends Scene {
     // todos lo toman
     this.rot += (0.06 + 0.3 * hk) * dt;
 
+    // En reposo cada uno suena cuando le toca a él, y se oye disperso.
+    // Al ponerse de acuerdo dejan su compás y entran todos en uno solo:
+    // lo que era goteo se vuelve un acorde repetido.
+    const tt = this.t();
+    if (hk > 0.55) {
+      this.beat += dt;
+      if (this.beat > 1.15) {
+        this.beat = 0;
+        this.members.forEach((mb, i) => {
+          if (i % 3 === 0) Audio.vinculo(mb.col, { gain: 0.08, dur: 1.4, delay: i * 0.006 });
+          mb.next = tt + 1.5 + Math.random() * 2;
+        });
+      }
+    } else {
+      for (const mb of this.members) {
+        if (tt > mb.next) {
+          mb.next = tt + mb.every;
+          Audio.vinculo(mb.col, { gain: 0.07, dur: 1.3 });
+        }
+      }
+    }
+
     for (const mb of this.members) {
       // cada uno anda a su ritmo mientras nadie los ordena…
       mb.phase += dt * mb.spd * (1 - hk);
@@ -371,7 +416,11 @@ class ColaboracionScene extends Scene {
           spd: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.75),
           wob: 0.7 + Math.random() * 1.6,
           phase: 0,        // cuánto se corrió de su puesto en la trama
+          // su propio compás: cada cuánto suena mientras anda solo
+          every: 2.2 + Math.random() * 3.4,
+          next: this.t() + 0.4 + Math.random() * 3,
         });
+        Audio.vinculo(f.col, { gain: 0.13, dur: 1.2 });
         this.free.splice(i, 1);
       }
     }

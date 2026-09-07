@@ -42,10 +42,19 @@ class ZeroScene extends Scene {
   onSwipe(dir) {
     // el foco se mueve dentro del continuo y se queda en los bordes:
     // nunca entra solo, nunca se escapa a otra pantalla
-    if (dir === 'left')  { this.focus = clampv(this.focus + 1, 0, 2); return true; }
-    if (dir === 'right') { this.focus = clampv(this.focus - 1, 0, 2); return true; }
+    if (dir === 'left')  { this.moveFocus(1); return true; }
+    if (dir === 'right') { this.moveFocus(-1); return true; }
     if (dir === 'up')    { this.app.scenes.go(this.sub.concepts[this.focus]); return true; }
     return false; // ↓ lo resuelve el sistema: vuelve al estado 0
+  }
+
+  /** Mover el foco suena: se oye en qué estación quedaste parado. */
+  moveFocus(d) {
+    const f = clampv(this.focus + d, 0, 2);
+    if (f !== this.focus) {
+      this.focus = f;
+      Audio.blip(Audio.note(3 + f * 2, 50), { type: 'sine', dur: 0.4, gain: 0.12 });
+    }
   }
 
   onTap(x, y) {
@@ -53,8 +62,12 @@ class ZeroScene extends Scene {
       const sx = this.stationX(i);
       if (Math.abs(x - sx) < this.spacing() * 0.38 && Math.abs(y - this.CY) < this.U * 0.3) {
         // la enfocada se entra; una lateral primero se trae al centro
-        if (i === this.focus) this.app.scenes.go(this.sub.concepts[i]);
-        else this.focus = i;
+        if (i === this.focus) {
+          Audio.blip(Audio.note(9, 50), { type: 'sine', dur: 0.7, gain: 0.16 });
+          this.app.scenes.go(this.sub.concepts[i]);
+        } else {
+          this.moveFocus(i - this.focus);
+        }
         return;
       }
     }
@@ -70,8 +83,14 @@ class ZeroScene extends Scene {
     textFont('Helvetica');
     setDash(Dash.none);
 
-    // encabezado del subsistema
-    trackedText(this.sub.name, this.CX, this.H * 0.12, Math.max(13, u * 0.021), 6, Palette.ink, 210 * k);
+    // Encabezado: el nombre del subsistema si hay palabra, y si no
+    // su signo, que dice lo mismo — cuadrado, círculo o triángulo.
+    if (Txt.on) {
+      trackedText(this.sub.name, this.CX, this.H * 0.12, Math.max(13, u * 0.021), 6, Palette.ink, 210 * k);
+    } else {
+      drawSign(this.sub.sign, this.CX, this.H * 0.12, u * 0.05,
+        { col: Palette.ink, alpha: 200 * k, weight: 2 });
+    }
 
     // la línea-continuo que une las tres estaciones
     stroke(Palette.inkA(90 * k));

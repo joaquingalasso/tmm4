@@ -29,11 +29,13 @@ class HomeScene extends Scene {
    */
   layout() {
     const topY = this.H * 0.085;                    // debajo de la hamburguesa
-    const footH = Math.max(48, this.U * 0.17);      // franja de los integrantes
+    // sin palabra no hay rótulos ni integrantes: todo ese aire se lo
+    // queda la grilla, que es lo único que queda para leer
+    const footH = Txt.on ? Math.max(48, this.U * 0.17) : this.U * 0.05;
     const availW = this.W * 0.9;
     const availH = this.H - topY - footH;
     const GAP = 0.16;                               // aire, proporcional a la celda
-    const labelH = this.labelSize() * 2.1;          // rótulo + su aire
+    const labelH = Txt.on ? this.labelSize() * 2.1 : 0;
 
     let cell = availW / (3 + 2 * GAP);
     const tall = () => 3 * (labelH + cell) + 2 * (cell * GAP);
@@ -63,6 +65,9 @@ class HomeScene extends Scene {
     for (let i = 0; i < this.grid.length; i++) {
       const c = this.cellAt(i);
       if (Math.abs(x - c.x) < c.s / 2 && Math.abs(y - c.y) < c.s / 2) {
+        // la nota de entrada dice de qué subsistema es lo que se abre
+        Audio.blip(Audio.note([0, 2, 4][Math.floor(i / 3)] + 5, 50),
+          { type: 'sine', dur: 0.7, gain: 0.16 });
         this.app.scenes.go(this.grid[i]);
         return;
       }

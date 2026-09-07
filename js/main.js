@@ -13,11 +13,12 @@ class App {
     this.ui = new UIManager(this);
     this.scenes = new SceneManager(this);
     this._registerScenes();
-    this.scenes.start('home');
+    this.scenes.start('inicio');
   }
 
   _registerScenes() {
     const S = this.scenes;
+    S.register('inicio', new InicioScene(this, 'inicio'));
     S.register('home', new HomeScene(this, 'home'));
     S.register('zero1', new ZeroScene(this, 'zero1', 'sub1'));
     S.register('zero2', new ZeroScene(this, 'zero2', 'sub2'));
@@ -40,6 +41,8 @@ class App {
    * Pulsar y mantener son del signo; deslizar es del sistema.
    */
   dispatch(type, a, b) {
+    // los navegadores no dejan sonar sin un gesto: éste es el gesto
+    if (type === 'down') Audio.unlock();
     if (this.transition.active) return;
     if (this.ui.onEvent(type, a, b)) return;
 
@@ -91,6 +94,7 @@ let app;
 function setup() {
   createCanvas(windowWidth, windowHeight);
   textFont('Helvetica');
+  Prefs.load();   // sonido y texto, como quedaron la última vez
   app = new App();
   window.__app = app; // consola / depuración
 }

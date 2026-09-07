@@ -33,8 +33,12 @@ class MemoriaScene extends Scene {
     const d = Math.abs(y - this.lineY());
     const s = clampv(20 + d * 0.05, 10, this.U * 0.055);
     const g = 255 - clampv(d * 0.28, 0, 130);
-    this.marks.push({ x, y, s, g, born: millis(), glow: 0 });
+    // la nota de la marca: cuanto más lejos del eje, más grave y más
+    // apagada, igual que su gris. El sonido dice lo mismo que el dibujo.
+    const deg = Math.round(clampv(9 - d / (this.U * 0.05), 0, 9));
+    this.marks.push({ x, y, s, g, deg, born: millis(), glow: 0 });
     if (this.marks.length > 400) this.marks.shift();
+    Audio.tiempo(deg, { gain: 0.1 + 0.24 * (g / 255) });
   }
 
   onHoldStart() { this.holding = true; this.readX = -40; }
@@ -50,9 +54,16 @@ class MemoriaScene extends Scene {
     }
     // la cabeza lectora sólo existe mientras se mantiene
     if (this.holding && this.marks.length > 0) {
+      const prev = this.readX;
       this.readX += this.W * dt / 1.15;
       for (const m of this.marks) {
         if (Math.abs(m.x - this.readX) < 16) m.glow = 1;
+        // releer es volver a tocarlas, en orden y más bajo: la
+        // opacidad de cada una es cuánto suena al pasar la lectora
+        if (m.x >= prev && m.x < this.readX) {
+          const age = (millis() - m.born) / 1000;
+          Audio.tiempo(m.deg, { gain: 0.05 + 0.16 * Math.exp(-age / 30), dur: 0.22 });
+        }
       }
       if (this.readX > this.W + 40) this.readX = -40;
     }
@@ -164,6 +175,10 @@ class HerenciaScene extends Scene {
       });
     }
     last.target = 0;                             // transmitir es apagarse
+    // la generación suena como un acorde: una nota por descendiente,
+    // y la nota de cada uno es su gris. Al mutar el gris, muta la nota.
+    nodes.forEach((n, j) => Audio.tiempo(Math.round((n.g - 62) / 184 * 9),
+                                         { gain: 0.24, delay: j * 0.055 }));
     this.gens.push({ i: last.i + 1, nodes, alpha: 0, target: 1, born: millis() });
     if (this.gens.length > 26) this.gens.shift();
     this.camTarget = Math.max(0, (last.i + 1) * this.stepX() - this.W * 0.55);
@@ -171,7 +186,15 @@ class HerenciaScene extends Scene {
   }
 
   onTap() { this.transmit(); }
-  onHoldStart() { this.holding = true; }
+
+  /** El legado también se escucha: todo el linaje, de una vez. */
+  onHoldStart() {
+    this.holding = true;
+    this.gens.forEach((g, i) => g.nodes.forEach((n, j) => {
+      Audio.tiempo(Math.round((n.g - 62) / 184 * 9),
+        { gain: 0.07, dur: 0.5, delay: i * 0.07 + j * 0.02 });
+    }));
+  }
   onHoldEnd() { this.holding = false; }
 
   update(dt) {
@@ -236,6 +259,7 @@ class CaducidadScene extends Scene {
     this.shards = [];      // { x, y, vx, vy, life }
     this.resist = 0;       // cuánto se está frenando ahora mismo, 0..1
     this.flash = 0;        // el golpe visible de cada frenada
+    this.rush = null;      // la voz del tránsito apurado
     // el convoy ya venía andando antes de que llegáramos
     for (let i = 0; i < 5; i++) this.convoy.push(this.make(0.9 - i * this.GAP));
   }
@@ -255,10 +279,20 @@ class CaducidadScene extends Scene {
   onTap() {
     this.resist = Math.min(1, this.resist + 0.42);
     this.flash = 1;
+    // frenar: una nota que se va para abajo y no llega a ningún lado
+    Audio.tiempo(6, { gain: 0.3, dur: 0.45, glide: 0.55, cut: 900 });
   }
 
-  onHoldStart() { this.holding = true; }
-  onHoldEnd() { this.holding = false; }
+  /** Apurar el tránsito se oye: una fuga que sube mientras se sostiene. */
+  onHoldStart() {
+    this.holding = true;
+    this.rush = Audio.voice(Audio.note(2, 38),
+      { type: 'triangle', gain: 0.09, cut: 900, glide: 0.3 });
+  }
+  onHoldEnd() {
+    this.holding = false;
+    if (this.rush) { this.rush.stop(0.4); this.rush = null; }
+  }
 
   update(dt) {
     this.updateHold(dt, 4);
@@ -270,12 +304,14 @@ class CaducidadScene extends Scene {
 
     // el paso del tránsito: frenado por el pulso, apurado por el sostén
     const speed = 0.038 * (1 - 0.8 * this.resist) * (1 + 2.6 * hk);
+    if (this.rush) this.rush.set(Audio.note(2 + 8 * hk, 38), 0.03 + 0.1 * hk);
 
     for (let i = this.convoy.length - 1; i >= 0; i--) {
       const sq = this.convoy[i];
       sq.p += speed * dt;
       if (sq.p >= 1) {
         // se deshace en esquirlas (pequeños trazos, nunca otra figura)
+        Audio.noise({ dur: 0.24, gain: 0.13, freq: 900 + Math.random() * 700 });
         const x = this.sqX(sq), y = this.lineY() - sq.s * 0.6;
         for (let j = 0; j < 7; j++) {
           this.shards.push({

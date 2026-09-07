@@ -79,6 +79,9 @@ function sceneMeta(id) {
       return { kind: 'zero', title: s.name, sub: s.tagline, subsystem: sid };
     }
   }
+  if (id === 'inicio') {
+    return { kind: 'inicio', title: '', sub: '', subsystem: null };
+  }
   if (id === 'cierre') {
     // sin título: el cierre no se anuncia, se ve
     return { kind: 'cierre', title: '', sub: '', subsystem: null };
