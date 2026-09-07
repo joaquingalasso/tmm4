@@ -53,11 +53,12 @@ class App {
       case 'holdMove':  scene.onHoldMove(a, b); break;
       case 'holdEnd':   scene.onHoldEnd(a); break;
       case 'swipe':
-        // a la escena se le pregunta una sola vez, dentro de nav*:
-        // así el chevron y el deslizamiento hacen exactamente lo mismo
-        if (a === 'left') this.scenes.navNext();
-        else if (a === 'right') this.scenes.navPrev();
-        else if (a === 'down') this.scenes.navBack();
+        // Deslizar de costado NO cambia de signo: cambiar de signo es
+        // sólo de las flechas laterales. Acá el movimiento se le pasa
+        // a la escena por si lo usa para lo suyo (el cero mueve el
+        // foco entre sus tres estaciones, sin entrar a ninguna).
+        if (a === 'left' || a === 'right') { scene.onSwipe(a, b); return; }
+        if (a === 'down') this.scenes.navBack();
         else if (a === 'up') this.scenes.navEnter();
         break;
     }

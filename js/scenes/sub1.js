@@ -25,9 +25,6 @@ class MemoriaScene extends Scene {
     super.enter();
     this.marks = [];        // { x, y, s, g, born, glow }
     this.readX = -40;
-    const rng = mulberry32(7);
-    this.grid = [];
-    for (let i = 0; i < 90; i++) this.grid.push({ x: rng(), y: rng(), j: rng() });
   }
 
   lineY() { return this.H * 0.55; }
@@ -66,13 +63,6 @@ class MemoriaScene extends Scene {
     const hk = this.holdK;
     rectMode(CENTER);
     setDash(Dash.none);
-
-    // retícula Molnár apenas visible
-    noStroke();
-    for (const c of this.grid) {
-      fill(Palette.inkA(9 * k));
-      rect(c.x * this.W + (c.j - 0.5) * 6, c.y * this.H + (c.j - 0.5) * 6, 4, 4);
-    }
 
     // la línea del tiempo, con un temblor de mano
     const ly = this.lineY();

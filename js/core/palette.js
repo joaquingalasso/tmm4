@@ -86,6 +86,12 @@ const Palette = {
     return color(r, g, bl);
   },
 
+  /** Distancia entre dos tonos, en grados (0..180). */
+  hueDist(a, b) {
+    const d = Math.abs(Palette._hsl(a).h - Palette._hsl(b).h) % 360;
+    return d > 180 ? 360 - d : d;
+  },
+
   _hsl(c) {
     const col = color(c);
     const r = red(col) / 255, g = green(col) / 255, b = blue(col) / 255;

@@ -230,7 +230,9 @@ class IncertidumbreScene extends Scene {
  * PULSAR   sólo cuenta SOBRE el triángulo: hay que acertarle. Se
  *          escapa justo antes del contacto y deja su eco. Tocar al
  *          lado no hace nada: la ansiedad no reacciona a cualquier
- *          cosa, reacciona a que la persigas.
+ *          cosa, reacciona a que la persigas. Y no huye en línea
+ *          recta: busca siempre por dónde le queda aire, así nunca
+ *          termina trabado contra un borde.
  * MANTENER es no soltar, y entonces se desmadra: el triángulo se
  *          sacude, los ecos se multiplican solos por todas partes,
  *          la escena entera tiembla y se cierra encima. Sostener
@@ -252,6 +254,34 @@ class AnsiedadScene extends Scene {
   /** El radio en que se considera que le acertaste. */
   hitR() { return this.size() * 0.75; }
 
+  /** Los límites dentro de los que puede moverse. */
+  bounds() {
+    const mx = this.size() * 0.9, my = this.size() * 0.9;
+    return { x0: mx, x1: this.W - mx, y0: my + this.U * 0.06, y1: this.H - my - this.U * 0.06 };
+  }
+
+  /**
+   * Busca a dónde escapar: entre varias salidas posibles se queda
+   * con la que combina estar lejos del dedo y tener aire alrededor.
+   * El término del aire es el que impide que quede arrinconado.
+   */
+  escapeFrom(fx, fy) {
+    const b = this.bounds();
+    let best = { x: this.tri.x, y: this.tri.y }, bestScore = -Infinity;
+    for (let i = 0; i < 16; i++) {
+      const ang = Math.random() * TWO_PI;
+      const r = this.U * (0.15 + Math.random() * 0.18);
+      const cx = clampv(this.tri.x + Math.cos(ang) * r, b.x0, b.x1);
+      const cy = clampv(this.tri.y + Math.sin(ang) * r, b.y0, b.y1);
+      const air = Math.min(cx - b.x0, b.x1 - cx, cy - b.y0, b.y1 - cy);
+      const travel = dist(cx, cy, this.tri.x, this.tri.y);
+      // lejos del dedo + con aire + que efectivamente se haya movido
+      const score = dist(cx, cy, fx, fy) + air * 1.8 + Math.min(travel, this.U * 0.2);
+      if (score > bestScore) { bestScore = score; best = { x: cx, y: cy }; }
+    }
+    return best;
+  }
+
   onTap(x, y) {
     if (dist(x, y, this.tri.x, this.tri.y) > this.hitR()) return;  // le erraste
     this.echoes.push({
@@ -260,10 +290,13 @@ class AnsiedadScene extends Scene {
     });
     if (this.echoes.length > 16) this.echoes.shift();
 
-    const away = Math.atan2(this.tri.y - y, this.tri.x - x) + (Math.random() - 0.5) * 0.9;
-    const r = this.U * (0.15 + Math.random() * 0.12);
-    this.tri.tx = clampv(this.tri.x + Math.cos(away) * r, this.W * 0.18, this.W * 0.82);
-    this.tri.ty = clampv(this.tri.y + Math.sin(away) * r, this.H * 0.22, this.H * 0.76);
+    // No huye en línea recta desde el dedo: eso lo terminaba
+    // acorralando en una esquina y parecía un error. Elige entre
+    // varias salidas la que más lo aleja del dedo Y más aire le
+    // deja alrededor, así siempre tiene a dónde seguir escapando.
+    const dest = this.escapeFrom(x, y);
+    this.tri.tx = dest.x;
+    this.tri.ty = dest.y;
     this.jit = Math.min(1, this.jit + 0.18);
   }
 
@@ -294,8 +327,9 @@ class AnsiedadScene extends Scene {
 
       // y el triángulo no para quieto
       if (Math.random() < dt * 5) {
-        this.tri.tx = clampv(this.CX + (Math.random() - 0.5) * this.W * 0.55, this.W * 0.18, this.W * 0.82);
-        this.tri.ty = clampv(this.CY + (Math.random() - 0.5) * this.H * 0.45, this.H * 0.22, this.H * 0.76);
+        const b = this.bounds();
+        this.tri.tx = clampv(this.CX + (Math.random() - 0.5) * this.W * 0.55, b.x0, b.x1);
+        this.tri.ty = clampv(this.CY + (Math.random() - 0.5) * this.H * 0.45, b.y0, b.y1);
       }
     } else {
       // baja de a poco; los ecos del desborde se van, los de cada
@@ -375,8 +409,7 @@ class AnsiedadScene extends Scene {
  * PULSAR   hace saltar lo real hacia su anticipación… y en el
  *          mismo movimiento la anticipación se proyecta más
  *          arriba. Se sube de verdad, pero la distancia nunca se
- *          cierra, y cada contorno incumplido queda atrás, cada
- *          vez más fino.
+ *          cierra: siempre falta lo mismo.
  * MANTENER es anticipar: la proyección corre sola hacia adelante,
  *          apilando contornos cada vez más altos y más finos. Al
  *          soltar se desploma: lo real quedó donde estaba.
@@ -389,19 +422,17 @@ class ExpectativaScene extends Scene {
     this.exp = 1;             // altura de la anticipación
     this.expShown = 1;
     this.proj = 0;            // cuánto corrió la anticipación al mantener
-    this.ghosts = [];         // contornos que quedaron sin cumplir
     this.camY = 0;
     this.snap = 0;
   }
 
   stepY() { return this.U * 0.17; }
-  yOf(level) { return this.H * 0.66 - level * this.stepY() + this.camY; }
+  yOf(level) { return this.H * 0.56 - level * this.stepY() + this.camY; }
 
   onTap() {
-    const gained = (this.exp - this.real) * 0.62;
-    this.ghosts.push({ level: this.exp, born: millis() });
-    if (this.ghosts.length > 14) this.ghosts.shift();
-    this.real += gained;
+    // lo real sube hacia lo anticipado, pero no llega; y en el mismo
+    // acto la anticipación se corre más arriba
+    this.real += (this.exp - this.real) * 0.62;
     this.exp = this.real + 0.85 + Math.random() * 0.5;
   }
 
@@ -443,14 +474,6 @@ class ExpectativaScene extends Scene {
     stroke(Palette.triA(1, (70 + 90 * hk) * k));
     strokeWeight(1);
     line(x, yReal, x, yExp);
-
-    // LOS CONTORNOS INCUMPLIDOS — marca: se afinan con el tiempo
-    for (const g of this.ghosts) {
-      const age = (millis() - g.born) / 1000;
-      const a = Math.max(18, 120 * Math.exp(-age / 14));
-      drawSign('triangle', x, this.yOf(g.level), base * (1 + g.level * 0.055),
-        { col: Palette.triColor(5), alpha: a * k, weight: 0.8 });
-    }
 
     // LA ANTICIPACIÓN QUE CORRE — marca, cada vez más fina
     if (hk > 0.01 && this.proj > 0.05) {

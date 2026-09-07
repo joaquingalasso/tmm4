@@ -92,35 +92,42 @@ function drawConceptPreview(cid, cx, cy, s, a, tt) {
     circle(0, 0, s * 0.09);
 
   } else if (cid === 'empatia') {
-    // dos círculos de su color, la pelotita que se devuelven y el
-    // círculo del tercer color que los toma juntos
-    const A = Palette.circleColor(6), B = Palette.circleColor(7);
-    const cyc = (tt * 0.35) % 2;
-    const d = s * 0.28;
-    const third = Palette.mixHue(A, B, 0.5, 1.75, -0.03);
+    // ponerse en el lugar del otro: mi círculo deja el suyo, viaja
+    // hasta el otro y en el camino toma su tamaño y su color, hasta
+    // quedar al lado, idéntico. Después vuelve.
+    const A = Palette.circleColor(6);      // yo
+    const B = Palette.circleColor(3);      // el otro
+    const cyc = (tt * 0.34) % 2;
+    const go = clampv(cyc < 1 ? cyc * 1.6 : (2 - cyc) * 1.6, 0, 1);
+    const e = Ease.inOutCubic(go);
+
+    const oX = s * 0.26, oY = -s * 0.1, oR = s * 0.15;   // el otro
+    const hX = -s * 0.3, hY = s * 0.16, hR = s * 0.1;    // mi lugar
+    const r = lerp(hR, oR, e);
+    const ang = Math.atan2(hY - oY, hX - oX);
+    const mX = lerp(hX, oX + Math.cos(ang) * (oR + r) * 1.14, e);
+    const mY = lerp(hY, oY + Math.sin(ang) * (oR + r) * 1.14, e);
     noFill();
 
-    // el círculo que los junta: aparece y se va, como el mantener
-    const join = clampv(Math.sin(tt * 0.55) * 1.6, 0, 1);
-    if (join > 0.02) {
-      stroke(Palette.alphaOf(third, a * join));
-      strokeWeight(2.4 * join);
-      circle(0, 0, (d + s * 0.2) * 2);
+    // mi lugar, marcado mientras no estoy en él
+    if (e > 0.05) {
+      stroke(Palette.alphaOf(A, a * 0.28 * e));
+      strokeWeight(1);
+      circle(hX, hY, hR * 2);
     }
 
-    stroke(Palette.alphaOf(third, a * (0.25 + 0.5 * join)));
-    strokeWeight(1 + 1.6 * join);
-    line(-d, 0, d, 0);
+    // el vínculo, de borde a borde
+    const d = dist(mX, mY, oX, oY) - r - oR;
+    if (d > 2) {
+      const la = Math.atan2(oY - mY, oX - mX);
+      stroke(Palette.alphaOf(Palette.mixHue(A, B, e * 0.5 + 0.25), a * (0.25 + 0.4 * e)));
+      strokeWeight(1 + e);
+      line(mX + Math.cos(la) * r, mY + Math.sin(la) * r,
+           oX - Math.cos(la) * oR, oY - Math.sin(la) * oR);
+    }
 
-    // la pelotita, de ida con un color y de vuelta con el otro
-    const go = cyc < 1;
-    const e = Ease.inOutCubic(go ? cyc : cyc - 1);
-    stroke(Palette.alphaOf(go ? A : B, a));
-    strokeWeight(2);
-    circle(lerp(go ? -d : d, go ? d : -d, e), 0, s * 0.075);
-
-    stroke(Palette.alphaOf(A, a)); strokeWeight(2.6); circle(-d, 0, s * 0.24);
-    stroke(Palette.alphaOf(B, a)); strokeWeight(2.6); circle(d, 0, s * 0.26);
+    stroke(Palette.alphaOf(B, a)); strokeWeight(2.6); circle(oX, oY, oR * 2);
+    stroke(Palette.alphaOf(Palette.mixHue(A, B, e), a)); strokeWeight(2.6); circle(mX, mY, r * 2);
 
   } else if (cid === 'colaboracion') {
     // trama de diversos que forman un solo círculo, sin fundirse

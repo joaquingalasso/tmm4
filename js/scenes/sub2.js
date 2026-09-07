@@ -85,144 +85,211 @@ class IdentidadScene extends Scene {
 
 /* ------------------------------------------------------------
  * EMPATÍA (como comprensión del otro)
- * Dos círculos, cada uno con su color. El otro anda su deriva
- * lenta; yo estoy donde estoy. Todo el signo es una operación de
- * color, y sólo pasan dos cosas:
  *
- * PULSAR envía: una pelotita de mi color viaja hasta el otro,
- *        que la devuelve con el suyo. En cada ida y vuelta cada
- *        uno se corre un paso hacia el tono del otro —dar color
- *        es recibirlo— pero nunca lo alcanza: teñirse del otro
- *        no es volverse el otro.
- * MANTENER es comprender: alrededor de los dos se cierra un
- *        círculo que los toma juntos, del tercer color que sale
- *        de mezclar los dos y que no es de ninguno. Mientras
- *        dura, se acercan y andan quietos.
- *        Al soltar, todo vuelve a como estaba: la comprensión no
- *        se guarda, se sostiene. Lo único que queda es el color
- *        que se intercambiaron.
+ * Yo soy un círculo con mi color y mi tamaño. El otro es otro
+ * círculo: otro color, otro tamaño, otro lugar, y anda su deriva.
+ * Entre los dos hay una línea, y esa línea es lo que compartimos:
+ * un degradado que va de mi color al suyo.
+ *
+ * PULSAR   es dar y recibir: me acerco un paso Y en el mismo gesto
+ *          le paso algo de mi color y me llevo algo del suyo. Los
+ *          dos cambiamos, siempre a la par, y la línea que nos une
+ *          se enciende con lo que acaba de pasar por ella. Nunca
+ *          llegamos a ser el color del otro: compartir no es
+ *          volverse el otro.
+ *
+ *          Y esto no queda solo: si dejo de pulsar, el color
+ *          compartido se va soltando y mi lugar se corre de vuelta
+ *          a donde estaba. Lo que no se sostiene se pierde: hay
+ *          que volver a acercarse y volver a dar.
+ *
+ * MANTENER es ponerse en su lugar: mi círculo deja el suyo, viaja
+ *          hasta donde está el otro y en el camino se vuelve de su
+ *          tamaño y de su color, hasta quedar al lado suyo,
+ *          idéntico. Por un momento no se distingue quién es cada
+ *          uno: eso es comprender.
+ *          De eso sí queda algo. Al soltar vuelvo a mi lugar, pero
+ *          con un paso de su color que ya no se me va, ni aunque
+ *          deje de tocar. Lo compartido se sostiene o se pierde;
+ *          lo que aprendiste estando en su lugar, no.
  * ------------------------------------------------------------ */
 class EmpatiaScene extends Scene {
   enter() {
     super.enter();
-    // dos tonos separados ~113° del círculo cromático: ni iguales
-    // ni opuestos, para que el tono intermedio sea un color nuevo
-    // y reconocible (rosa + verde dan naranja)
-    this.myBase = Palette.circleColor(6);      // rosa
-    this.otherBase = Palette.circleColor(7);   // verde
-    this.tint = 0;              // cuánto se tiñó cada uno del otro
-    this.TINT_MAX = 0.26;       // nunca 0.5
-    this.pulses = [];           // { p 0..1, col, back }
+    this.myOrigin = color(Palette.circleColor(6));
+    this.share = 0;        // lo que nos estamos pasando ahora
+    this.keep = 0;         // lo que me quedó de estar en su lugar
+    this.SHARE_MAX = 0.3;   // ni compartiendo todo se llega a la mitad
+    this.KEEP_MAX = 0.24;
+
+    this.origin = { x: this.W * 0.3, y: this.H * 0.66 };   // mi lugar de siempre
+    this.home = { x: this.origin.x, y: this.origin.y };
+    this.homeT = { x: this.origin.x, y: this.origin.y };
+    this.me = { x: this.origin.x, y: this.origin.y };
+
+    this.bump = 0;         // "hasta acá llego"
+    this.flash = 0;        // el destello de cada intercambio
+    this.colIdx = 1;
+    this.other = null;
+    this.newOther();
     this.noiseT = Math.random() * 100;
-    this.home = { x: this.W * 0.32, y: this.H * 0.5 };
-    this.me = { x: this.W * 0.32, y: this.H * 0.5 };
-    this.other = { x: this.W * 0.68, y: this.H * 0.5 };
+    this.swap = 0;         // 0..1: cuánto estoy en el lugar del otro
+    this.wasThere = false;
+    // durante la transición de entrada se dibuja sin haber pasado
+    // todavía por update: el estado tiene que estar completo acá
+    this.meR = this.myR();
     this._recolor();
+    this.meCol = this.myBase;
   }
 
-  /** Cada uno es su tono corrido hacia el del otro, nunca más allá. */
+  myR() { return this.U * 0.072; }
+
+  /**
+   * Otro distinto: otro color, otro tamaño, otro lugar.
+   * El color se elige lejos del mío en el círculo cromático y el
+   * tamaño, francamente mayor o menor que el mío: si el otro se me
+   * pareciera, ni el intercambio ni ponerse en su lugar se notarían.
+   */
+  newOther() {
+    let best = 0, bestD = -1;
+    for (let i = 0; i < 10; i++) {
+      const d = Palette.hueDist(Palette.circleColor(i), this.myOrigin) + Math.random() * 45;
+      if (d > bestD) { bestD = d; best = i; }
+    }
+    this.colIdx = best;
+    const nx = this.W * (0.52 + Math.random() * 0.26);
+    const ny = this.H * (0.3 + Math.random() * 0.16);
+    const nr = this.myR() * (Math.random() < 0.5 ? 0.52 + Math.random() * 0.13
+                                                 : 1.55 + Math.random() * 0.35);
+    this.otherOrigin = color(Palette.circleColor(this.colIdx));
+    this.other = { x: nx, y: ny, r: nr, col: this.otherOrigin, ox: nx, oy: ny };
+  }
+
+  /** Los dos colores, corridos uno hacia el otro por lo compartido. */
   _recolor() {
-    this.myCol = Palette.mixHue(this.myBase, this.otherBase, this.tint);
-    this.otherCol = Palette.mixHue(this.otherBase, this.myBase, this.tint);
+    this.myBase = Palette.mixHue(this.myOrigin, this.otherOrigin,
+                                 Math.min(0.48, this.share + this.keep));
+    this.other.col = Palette.mixHue(this.otherOrigin, this.myOrigin, this.share);
   }
 
-  /** El tercer color: el que sale de los dos y no es de ninguno. */
-  thirdCol() { return Palette.mixHue(this.myCol, this.otherCol, 0.5, 1.75, -0.03); }
-
+  /** Dar y recibir: acercarse un paso e intercambiar color. */
   onTap() {
-    if (this.pulses.length > 3) return;
-    this.pulses.push({ p: 0, col: this.myCol, back: false });
+    const o = this.other;
+    this.share = Math.min(this.SHARE_MAX, this.share + 0.09);
+    this.flash = 1;
+
+    const minGap = (this.myR() + o.r) * 1.7;   // cerca, pero sin encimarse
+    const d = dist(this.homeT.x, this.homeT.y, o.x, o.y);
+    if (d <= minGap + 3) { this.bump = 1; return; }
+    const target = Math.max(minGap, d - (d - minGap) * 0.42);
+    const ang = Math.atan2(this.homeT.y - o.y, this.homeT.x - o.x);
+    this.homeT.x = o.x + Math.cos(ang) * target;
+    this.homeT.y = o.y + Math.sin(ang) * target;
   }
 
   onHoldStart() { this.holding = true; }
   onHoldEnd() { this.holding = false; }
 
   update(dt) {
-    this.updateHold(dt, 2.4);
-    const hk = this.holdK;
-    const o = this.other, m = this.me;
+    this.updateHold(dt, 2.2);
+    const o = this.other;
+    this.bump = Math.max(0, this.bump - dt * 1.8);
+    this.flash = Math.max(0, this.flash - dt * 1.7);
 
-    // la deriva del otro: lenta y continua, nunca un rebote.
-    // mientras se lo comprende, se aquieta.
-    this.noiseT += dt * 0.13 * (1 - 0.85 * hk);
-    const dx = this.W * (0.5 + 0.2 * (noise(this.noiseT) - 0.5) * 2);
-    const dy = this.H * (0.5 + 0.17 * (noise(this.noiseT + 40) - 0.5) * 2);
-
-    // al comprenderse se acercan y se acomodan en el centro del
-    // encuadre, para que el círculo que los toma juntos entre entero
-    const near = this.U * 0.17;
-    const otx = lerp(dx, this.CX + near, hk);
-    const oty = lerp(dy, this.CY, hk);
-    const mtx = lerp(this.home.x, this.CX - near, hk);
-    const mty = lerp(this.home.y, this.CY, hk);
-
-    o.x += (otx - o.x) * Math.min(1, dt * 2.2);
-    o.y += (oty - o.y) * Math.min(1, dt * 2.2);
-    m.x += (mtx - m.x) * Math.min(1, dt * 2.2);
-    m.y += (mty - m.y) * Math.min(1, dt * 2.2);
-
-    // los envíos van y vuelven; cada vuelta corre un paso el color
-    for (let i = this.pulses.length - 1; i >= 0; i--) {
-      const p = this.pulses[i];
-      p.p += dt * 0.85;
-      if (p.p >= 1) {
-        if (!p.back) {
-          this.pulses.push({ p: 0, col: this.otherCol, back: true });
-        } else {
-          this.tint = Math.min(this.TINT_MAX, this.tint + 0.055);
-          this._recolor();
-        }
-        this.pulses.splice(i, 1);
-      }
+    // Lo compartido no queda solo: si nadie lo sostiene, se suelta,
+    // y mi lugar se corre de vuelta a donde estaba. Mientras estoy
+    // en su lugar, en cambio, nada se afloja.
+    if (!this.holding) {
+      this.share = Math.max(0, this.share - dt * 0.028);
+      this.homeT.x += (this.origin.x - this.homeT.x) * Math.min(1, dt * 0.1);
+      this.homeT.y += (this.origin.y - this.homeT.y) * Math.min(1, dt * 0.1);
     }
+
+    // mi lugar se corre de a pasos, con inercia
+    this.home.x += (this.homeT.x - this.home.x) * Math.min(1, dt * 3.4);
+    this.home.y += (this.homeT.y - this.home.y) * Math.min(1, dt * 3.4);
+
+    // el otro anda su deriva, lenta y continua; al ir a su lugar se aquieta
+    this.noiseT += dt * 0.12 * (1 - 0.9 * this.holdK);
+    const wx = o.ox + (noise(this.noiseT) - 0.5) * this.U * 0.16;
+    const wy = o.oy + (noise(this.noiseT + 40) - 0.5) * this.U * 0.13;
+    o.x += (clampv(wx, this.U * 0.16, this.W - this.U * 0.16) - o.x) * Math.min(1, dt * 1.8);
+    o.y += (clampv(wy, this.U * 0.16, this.H * 0.72) - o.y) * Math.min(1, dt * 1.8);
+
+    // ponerse en su lugar, y volver
+    this.swap += (this.holdK - this.swap) * Math.min(1, dt * 3);
+    if (this.swap > 0.9) this.wasThere = true;
+    if (this.wasThere && this.swap < 0.06) {
+      // de haber estado en su lugar queda un paso que ya no se suelta
+      this.keep = Math.min(this.KEEP_MAX, this.keep + 0.09);
+      this.wasThere = false;
+    }
+
+    this._recolor();
+
+    // dónde estoy: en mi lugar, o al lado suyo si estoy yendo
+    const s = Ease.inOutCubic(clamp01(this.swap));
+    const r = lerp(this.myR(), o.r, s);
+    const ang = Math.atan2(this.home.y - o.y, this.home.x - o.x);
+    this.me.x = lerp(this.home.x, o.x + Math.cos(ang) * (o.r + r) * 1.14, s);
+    this.me.y = lerp(this.home.y, o.y + Math.sin(ang) * (o.r + r) * 1.14, s);
+    this.meR = r;
+    this.meCol = Palette.mixHue(this.myBase, o.col, s);
   }
 
   draw() {
     const k = this.enterK(1);
-    const hk = this.holdK;
-    const o = this.other, m = this.me;
+    const o = this.other;
+    const m = this.me;
+    const s = Ease.inOutCubic(clamp01(this.swap));
     setDash(Dash.none);
     noFill();
 
-    const rMe = this.U * 0.09;
-    const rOther = this.U * 0.11;
+    const d = dist(m.x, m.y, o.x, o.y);
+    const gap = d - this.meR - o.r;
 
-    // la línea del vínculo: siempre está, y se afirma al comprender
-    const link = Palette.alphaOf(this.thirdCol(), (55 + 150 * hk) * k);
-    stroke(link);
-    strokeWeight(1 + 2 * hk);
-    // de borde a borde: la línea une, no atraviesa
-    const la = Math.atan2(o.y - m.y, o.x - m.x);
-    line(m.x + Math.cos(la) * rMe, m.y + Math.sin(la) * rMe,
-         o.x - Math.cos(la) * rOther, o.y - Math.sin(la) * rOther);
-
-    // EL CÍRCULO QUE LOS TOMA JUNTOS: sólo mientras se mantiene
-    if (hk > 0.01) {
-      const cx = (m.x + o.x) / 2, cy = (m.y + o.y) / 2;
-      const d = dist(m.x, m.y, o.x, o.y);
-      const r = (d / 2 + Math.max(rMe, rOther) + this.U * 0.055);
-      stroke(Palette.alphaOf(this.thirdCol(), 225 * hk * k));
-      strokeWeight(2.6 * hk);
-      circle(cx, cy, r * 2 * (0.86 + 0.14 * hk));
+    /* LO COMPARTIDO — la línea entre los dos no es de un color:
+     * es un degradado que va del mío al suyo. Cuanto más nos
+     * pasamos, más se enciende; al soltarse, se apaga sola. */
+    if (gap > 3) {
+      const ang = Math.atan2(o.y - m.y, o.x - m.x);
+      const ax = m.x + Math.cos(ang) * this.meR, ay = m.y + Math.sin(ang) * this.meR;
+      const bx = o.x - Math.cos(ang) * o.r,      by = o.y - Math.sin(ang) * o.r;
+      const near = clamp01(1 - gap / (this.U * 0.55));
+      const carga = clamp01(this.share / this.SHARE_MAX);
+      const segs = 14;
+      for (let i = 0; i < segs; i++) {
+        const t0 = i / segs, t1 = (i + 1) / segs;
+        const c = Palette.mixHue(this.meCol, o.col, (t0 + t1) / 2, 1 + 0.5 * carga);
+        c.setAlpha((28 + 60 * near + 90 * carga + 110 * this.flash) * k);
+        stroke(c);
+        strokeWeight(1 + 1.4 * carga + 2.2 * this.flash);
+        line(lerp(ax, bx, t0), lerp(ay, by, t0), lerp(ax, bx, t1), lerp(ay, by, t1));
+      }
     }
 
-    // la pelotita que se devuelven
-    for (const p of this.pulses) {
-      const from = p.back ? o : m, to = p.back ? m : o;
-      const e = Ease.inOutCubic(p.p);
-      stroke(Palette.alphaOf(p.col, 240 * k));
-      strokeWeight(2.2);
-      circle(lerp(from.x, to.x, e), lerp(from.y, to.y, e), this.U * 0.036);
+    // mi lugar queda marcado mientras no estoy en él
+    if (s > 0.05) {
+      stroke(Palette.alphaOf(this.myBase, 60 * s * k));
+      strokeWeight(1);
+      circle(this.home.x, this.home.y, this.myR() * 2);
     }
 
-    // los dos, cada uno con su color
-    stroke(Palette.alphaOf(this.otherCol, 250 * k));
-    strokeWeight(3.4);
-    circle(o.x, o.y, rOther * 2);
+    // el tope: más cerca que esto no se llega estando de este lado
+    if (this.bump > 0.02) {
+      stroke(Palette.alphaOf(this.meCol, 190 * this.bump * k));
+      strokeWeight(1.6);
+      circle(m.x, m.y, this.meR * 2 * (1 + 0.5 * (1 - this.bump)));
+    }
 
-    stroke(Palette.alphaOf(this.myCol, 250 * k));
-    strokeWeight(3.4);
-    circle(m.x, m.y, rMe * 2);
+    // los dos, cada uno con el color que tiene ahora
+    stroke(Palette.alphaOf(o.col, 250 * k));
+    strokeWeight(3.4 + 1.2 * this.flash);
+    circle(o.x, o.y, o.r * 2);
+
+    stroke(Palette.alphaOf(this.meCol, 250 * k));
+    strokeWeight(3.4 + 1.2 * this.flash);
+    circle(m.x, m.y, this.meR * 2);
   }
 }
 
@@ -231,11 +298,14 @@ class EmpatiaScene extends Scene {
  * PULSAR suma un diverso: un círculo de otro color aparece donde
  * se pulsó y deriva hasta el círculo común, donde toma su puesto
  * en la trama. Nadie se impone adentro: se llega.
- * MANTENER es ponerse de acuerdo: se apaga el desfase entre los
- * anillos y el pulso propio de cada uno. Todos giran en el mismo
- * sentido y a la misma velocidad, y laten a la vez, como un solo
- * cuerpo; entre vecinos se tienden las cuerdas. Nadie cambia de
- * color ni de tamaño: lo que se ordena es el movimiento.
+ * En reposo cada uno anda por su cuenta: gira a su ritmo, para su
+ * lado, y se corre de su puesto. Están todos adentro del círculo
+ * común, pero no hacen nada juntos: es una nube.
+ * MANTENER es ponerse de acuerdo. Cada uno vuelve a su puesto en la
+ * trama, deja su ritmo propio y toma el de todos: la nube se cierra
+ * en una sola figura que gira entera, en un mismo sentido y a un
+ * mismo paso. Nadie cambia de color ni de tamaño: lo único que se
+ * ordena —y se ve ordenarse— es el movimiento.
  * ------------------------------------------------------------ */
 class ColaboracionScene extends Scene {
   enter() {
@@ -273,9 +343,20 @@ class ColaboracionScene extends Scene {
 
   update(dt) {
     this.updateHold(dt, 2);
-    // la obra común gira despacio, y al ponerse de acuerdo apenas
-    // toma cuerpo: colaborar no es acelerar, es ir a un mismo paso
-    this.rot += (0.05 + 0.13 * this.holdK) * dt;
+    const hk = this.holdK;
+    // el paso común: existe siempre, pero recién se siente cuando
+    // todos lo toman
+    this.rot += (0.06 + 0.3 * hk) * dt;
+
+    for (const mb of this.members) {
+      // cada uno anda a su ritmo mientras nadie los ordena…
+      mb.phase += dt * mb.spd * (1 - hk);
+      // …y al ponerse de acuerdo vuelve a su puesto por el arco corto
+      if (hk > 0.01) {
+        const d = Math.atan2(Math.sin(-mb.phase), Math.cos(-mb.phase));
+        mb.phase += d * Math.min(1, dt * 1.7 * hk);
+      }
+    }
 
     for (let i = this.free.length - 1; i >= 0; i--) {
       const f = this.free[i];
@@ -284,7 +365,13 @@ class ColaboracionScene extends Scene {
       f.vy += Math.sin(ang) * this.U * 0.24 * dt;
       f.x += f.vx * dt; f.y += f.vy * dt;
       if (dist(f.x, f.y, this.CX, this.CY) < this.commonsR() * 1.02) {
-        this.members.push({ slot: this.members.length, col: f.col, k: 0, x: f.x, y: f.y, sz: f.sz });
+        this.members.push({
+          slot: this.members.length, col: f.col, k: 0, x: f.x, y: f.y, sz: f.sz,
+          // el ritmo propio de cada uno: su velocidad, su sentido y su vaivén
+          spd: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.75),
+          wob: 0.7 + Math.random() * 1.6,
+          phase: 0,        // cuánto se corrió de su puesto en la trama
+        });
         this.free.splice(i, 1);
       }
     }
@@ -306,35 +393,14 @@ class ColaboracionScene extends Scene {
     // la trama de los diversos (vibración Le Parc)
     for (const mb of this.members) {
       const sl = this.slots[mb.slot];
-      // el anillo de afuera va más rápido que el de adentro… hasta que
-      // se ponen de acuerdo: entonces la trama gira como una sola pieza
-      const ang = sl.ang + this.rot * (1 + (sl.r / this.commonsR()) * 0.15 * (1 - hk));
-      // y cada uno deja su pulso propio para latir con los demás
-      const phase = lerp(mb.slot * 1.7, 0, hk);
-      const vib = Math.sin(tt * 3.4 + phase) * this.U * (0.0022 + 0.0026 * hk);
-      mb.tx = this.CX + Math.cos(ang) * (sl.r + vib);
-      mb.ty = this.CY + Math.sin(ang) * (sl.r + vib);
+      // el puesto que le toca, más lo que se corrió andando por su cuenta
+      const ang = sl.ang + this.rot + mb.phase;
+      // y el vaivén propio, que también se aquieta al ponerse de acuerdo
+      const rad = sl.r + Math.sin(tt * mb.wob + mb.slot) * this.U * 0.03 * (1 - hk);
+      mb.tx = this.CX + Math.cos(ang) * rad;
+      mb.ty = this.CY + Math.sin(ang) * rad;
       mb.x = lerp(mb.x, mb.tx, Math.min(1, mb.k));
       mb.y = lerp(mb.y, mb.ty, Math.min(1, mb.k));
-    }
-
-    // las cuerdas: al mantener se ve la figura que hacen entre todos
-    if (hk > 0.02 && this.members.length > 1) {
-      strokeWeight(1.3);
-      for (let i = 0; i < this.members.length; i++) {
-        const a = this.members[i];
-        for (let j = i + 1; j < this.members.length; j++) {
-          const b = this.members[j];
-          const d = dist(a.x, a.y, b.x, b.y);
-          if (d > this.U * 0.1) continue;
-          // la cuerda es la mezcla de los dos colores: nadie se funde,
-          // pero entre los dos hay algo
-          const c = Palette.mixHue(a.col, b.col, 0.5, 1.1);
-          c.setAlpha(200 * hk * k * (1 - d / (this.U * 0.1)));
-          stroke(c);
-          line(a.x, a.y, b.x, b.y);
-        }
-      }
     }
 
     // cada uno, con su color

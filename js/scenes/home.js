@@ -2,10 +2,10 @@
 /* ============================================================
  * home.js — ESTADO 0 del sistema
  *
- * Es la portada y el índice: junto con el menú, la única
- * superficie del sistema donde hay palabra. Título, cátedra,
- * integrantes y una grilla de 3×3, una celda por signo, con la
- * misma vista previa cinética que usan las pantallas "cero".
+ * El índice: una grilla de 3×3, una celda por signo, con la misma
+ * vista previa cinética que usan las pantallas "cero". El nombre
+ * de cada signo va ARRIBA de su miniatura, como un rótulo. Abajo,
+ * los integrantes. Nada más: el sistema se presenta mostrándose.
  * Pulsar una celda entra a ese signo.
  * ============================================================ */
 
@@ -19,30 +19,44 @@ class HomeScene extends Scene {
     }
   }
 
-  /** Geometría: 3×3 celdas cuadradas e iguales, con aire entre ellas. */
+  /** Cuerpo tipográfico del rótulo de cada celda. */
+  labelSize() { return Math.max(9, this.U * 0.0125); }
+
+  /**
+   * Geometría de la grilla. Cada fila es un bloque de dos partes:
+   * el rótulo y, debajo, la celda cuadrada. El ancho manda; si el
+   * conjunto no entra a lo alto, la celda se achica.
+   */
   layout() {
-    const headY = this.H * 0.19;                 // fin del encabezado
-    // franja de los nombres de las celdas + la de los integrantes
-    const labelBand = this.U * 0.024 + Math.max(9, this.U * 0.0115);
-    const footH = labelBand + this.U * 0.055 + Math.max(9, this.U * 0.0125) * 3.4;
-    const availH = this.H - headY - footH;
+    const topY = this.H * 0.085;                    // debajo de la hamburguesa
+    const footH = Math.max(48, this.U * 0.17);      // franja de los integrantes
     const availW = this.W * 0.9;
-    const GAP_RATIO = 0.16;
-    const cell = Math.min(availW, availH) / (3 + 2 * GAP_RATIO);
-    const gap = cell * GAP_RATIO;
-    const totalSide = cell * 3 + gap * 2;
-    const x0 = this.CX - totalSide / 2 + cell / 2;
-    // la grilla, sus nombres y los integrantes se centran como un bloque
-    const y0 = headY + Math.max(0, (availH - totalSide) / 2) + cell / 2;
-    const footY = y0 - cell / 2 + totalSide + labelBand + this.U * 0.055;
-    return { cell, gap, x0, y0, footY };
+    const availH = this.H - topY - footH;
+    const GAP = 0.16;                               // aire, proporcional a la celda
+    const labelH = this.labelSize() * 2.1;          // rótulo + su aire
+
+    let cell = availW / (3 + 2 * GAP);
+    const tall = () => 3 * (labelH + cell) + 2 * (cell * GAP);
+    if (tall() > availH) cell = (availH - 3 * labelH) / (3 + 2 * GAP);
+
+    const gap = cell * GAP;
+    const totalW = cell * 3 + gap * 2;
+    const totalH = 3 * (labelH + cell) + gap * 2;
+    const x0 = this.CX - totalW / 2 + cell / 2;
+    const y0 = topY + Math.max(0, (availH - totalH) / 2) + labelH + cell / 2;
+    const footY = y0 - cell / 2 - labelH + totalH + footH * 0.45;
+    return { cell, gap, labelH, x0, y0, footY };
   }
 
   /** Centro y lado de la celda i (0..8, fila por fila). */
   cellAt(i) {
-    const { cell, gap, x0, y0 } = this.layout();
+    const { cell, gap, labelH, x0, y0 } = this.layout();
     const col = i % 3, row = Math.floor(i / 3);
-    return { x: x0 + col * (cell + gap), y: y0 + row * (cell + gap), s: cell };
+    return {
+      x: x0 + col * (cell + gap),
+      y: y0 + row * (cell + labelH + gap),
+      s: cell,
+    };
   }
 
   onTap(x, y) {
@@ -60,28 +74,21 @@ class HomeScene extends Scene {
 
   draw() {
     const k = this.enterK(1.1);
-    const u = this.U;
+    const { labelH, footY } = this.layout();
+    const ls = this.labelSize();
     textFont('Helvetica');
     setDash(Dash.none);
 
-    // título del sistema (dos líneas, para caber en pantallas angostas)
-    const titleA = 220 * this.enterK(1, 0.15);
-    fadedText('Sistema de signos de representación', this.CX, this.H * 0.07,
-      Math.max(13, u * 0.021), Palette.ink, titleA);
-    fadedText('geométrica, cinética y reactiva.', this.CX, this.H * 0.07 + u * 0.032,
-      Math.max(13, u * 0.021), Palette.ink, titleA);
-
-    fadedText('Taller de Diseño Multimedial 4 · Facultad de Artes · UNLP · 2026',
-      this.CX, this.H * 0.07 + u * 0.07, Math.max(10, u * 0.0125), Palette.ink,
-      130 * this.enterK(1, 0.35));
-
-    // la grilla 3×3: una vista previa por signo
+    // la grilla 3×3: el rótulo arriba, la vista previa del signo abajo
     for (let i = 0; i < this.grid.length; i++) {
       const cid = this.grid[i];
       const c = SYSTEM.concepts[cid];
       const p = this.cellAt(i);
-      const appearK = this.enterK(0.6, 0.25 + i * 0.03);
+      const appearK = this.enterK(0.6, 0.1 + i * 0.03);
       if (appearK <= 0) continue;
+
+      fadedText(c.title, p.x, p.y - p.s / 2 - labelH * 0.44,
+        ls, Palette.ink, 150 * appearK * k);
 
       push();
       rectMode(CENTER);
@@ -92,14 +99,11 @@ class HomeScene extends Scene {
       pop();
 
       drawConceptPreview(cid, p.x, p.y, p.s * 0.72, 200 * appearK * k, this.t());
-
-      fadedText(c.title, p.x, p.y + p.s / 2 + u * 0.024,
-        Math.max(9, u * 0.0115), Palette.ink, 130 * appearK * k);
     }
 
     // integrantes del grupo, en orden alfabético
-    fittedText(MEMBERS.join('   ·   '), this.CX, this.layout().footY,
-      Math.max(9, u * 0.0125), this.W * 0.9,
-      Palette.ink, 140 * this.enterK(1, 0.7));
+    fittedText(MEMBERS.join('   ·   '), this.CX, footY,
+      Math.max(9, this.U * 0.0125), this.W * 0.9,
+      Palette.ink, 150 * this.enterK(1, 0.5));
   }
 }
